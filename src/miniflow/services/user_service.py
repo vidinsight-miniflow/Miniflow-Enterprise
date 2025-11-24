@@ -4,11 +4,9 @@ from datetime import datetime, timezone, timedelta
 from src.miniflow.database import with_transaction, with_readonly_session
 from src.miniflow.database import DatabaseManager, RepositoryRegistry
 from ..database.models.enums import PasswordChangeReason
-from src.miniflow.database.models import User
 
-from src.miniflow.core.exceptions import BusinessRuleViolationError, InvalidInputError, DatabaseValidationError
-from src.miniflow.utils.helpers.encryption_helper import hash_password, hash_data, verify_password
-from src.miniflow.utils.helpers.jwt_helper import create_access_token, create_refresh_token, validate_access_token, validate_refresh_token, is_token_valid
+from src.miniflow.core.exceptions import BusinessRuleViolationError
+from src.miniflow.utils.helpers.encryption_helper import hash_password, verify_password
 from src.miniflow.utils import ConfigurationHandler, MailTrapClient
 
 
@@ -215,7 +213,7 @@ class UserService:
         }
     
     @with_transaction(manager=None)
-    def change_username(
+    def update_username(
         self,
         session,
         *,
@@ -259,7 +257,7 @@ class UserService:
         }
     
     @with_transaction(manager=None)
-    def change_email(
+    def update_email(
         self,
         session,
         *,

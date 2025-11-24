@@ -61,25 +61,36 @@ class Credential(BaseModel):
     )
 
     # İlişkiler
-    workspace_id = Column(String(20), ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False, index=True)
-    owner_id = Column(String(20), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    workspace_id = Column(String(20), ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False, index=True,
+        comment="Hangi workspace'de")
+    owner_id = Column(String(20), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True,
+        comment="Credential sahibinin ID'si")
 
     # Temel bilgiler
-    name = Column(String(100), nullable=False, index=True, unique=True)
-    credential_type = Column(Enum(CredentialType), nullable=False, index=True)
-    credential_provider = Column(Enum(CredentialProvider), nullable=False, index=True)
-    description = Column(Text, nullable=True)
+    name = Column(String(100), nullable=False, index=True,
+        comment="Credential adı (workspace içinde benzersiz)")
+    credential_type = Column(Enum(CredentialType), nullable=False, index=True,
+        comment="Credential tipi (API_KEY, OAUTH2, BASIC_AUTH, vb.)")
+    credential_provider = Column(Enum(CredentialProvider), nullable=True, index=True,
+        comment="Credential provider (sadece OAuth2 için: GOOGLE, MICROSOFT, GITHUB)")
+    description = Column(Text, nullable=True,
+        comment="Credential açıklaması")
 
     # Credential verisi (tüm JSON şifrelenmiş)
-    credential_data = Column(JSON, nullable=False)  # Tüm credential detayları ile şifrelenmiş JSON
+    credential_data = Column(JSON, nullable=False,
+        comment="Tüm credential detayları ile şifrelenmiş JSON")
 
     # Durum
-    is_active = Column(Boolean, default=True, nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=True, index=True)
-    last_used_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False, index=True,
+        comment="Credential aktif mi?")
+    expires_at = Column(DateTime, nullable=True, index=True,
+        comment="Geçerlilik süresi bitiş tarihi")
+    last_used_at = Column(DateTime, nullable=True,
+        comment="Son kullanım zamanı")
 
     # Üst veri
-    tags = Column(JSON, default=lambda: [], nullable=True)
+    tags = Column(JSON, default=lambda: [], nullable=True,
+        comment="Etiketler (JSON array)")
 
     # İlişkiler
     workspace = relationship("Workspace", back_populates="credentials")
