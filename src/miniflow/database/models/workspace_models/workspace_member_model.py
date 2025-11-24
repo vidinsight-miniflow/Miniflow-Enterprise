@@ -22,6 +22,8 @@ class WorkspaceMember(BaseModel):
         comment="Kullanıcı ID'si")
     role_id = Column(String(20), ForeignKey('user_roles.id', ondelete='RESTRICT'), nullable=False, index=True,
         comment="Kullanıcı rolü ID'si")
+    role_name = Column(String(100), nullable=False, index=True,
+        comment="Kullanıcı rolü adı")
     
     # Davet ve katılım
     invited_by = Column(String(20), ForeignKey('users.id', ondelete='SET NULL'), nullable=True,
