@@ -138,6 +138,43 @@ class AuthenticationService:
         }
 
     @with_transaction(manager=None)
+    def send_verification_email(
+        self,
+        session,
+        *,
+        user_id: str,
+        email: str,
+    ) -> Dict[str, Any]:
+        user = self._user_repo._get_by_id(session, record_id=user_id, include_deleted=False)
+        if not user:
+            raise BusinessRuleViolationError(
+                rule_name="user_not_found",
+                rule_detail="user not found",
+                message="User not found"
+            )
+        
+        user.generate_email_verification_token()
+        session.add(user)
+        session.flush()
+
+        self._mailtrap_client.send_verification_email(
+            to_email=email,
+            template_variables={
+                "company_info_name": "Test Company Info Name",
+                "name": "Test_Name",
+                "company_info_address": "Test Company Info Address",
+                "company_info_city": "Test Company Info City",
+                "company_info_zip_code": "Test Company Info Zip Code",
+                "company_info_country": "Test Company Info Country"
+            }
+        )
+
+        return {
+            "user_id": user.id,
+            "email": user.email,
+        }
+
+    @with_transaction(manager=None)
     def verify_email(
         self,
         session,
@@ -219,11 +256,20 @@ class AuthenticationService:
                 failure_reason="Email not verified",
                 created_by=user.id
             )
-            raise BusinessRuleViolationError(
-                rule_name="email_not_verified",
-                rule_detail="email not verified",
-                message="Please verify your email address before logging in. Check your inbox for the verification email"
-            )
+
+            if user.verification_token_is_valid(user.email_verification_token):
+                raise BusinessRuleViolationError(
+                    rule_name="email_not_verified",
+                    rule_detail="email not verified",
+                    message="Please verify your email address before logging in. Check your inbox for the verification email"
+                )
+            else:
+                self.send_verification_email(session, user_id=user.id, email=user.email)
+                raise BusinessRuleViolationError(
+                    rule_name="email_not_verified",
+                    rule_detail="email not verified",
+                    message="Please verify your email address before logging in. Check your inbox for the verification email"
+                )
 
         if user.is_locked:
             # locked_until None olabilir, bu durumda manuel unlock gerekir
