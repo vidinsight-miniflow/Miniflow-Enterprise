@@ -29,6 +29,7 @@ class AuthenticationService:
         self.max_failed_attempts = ConfigurationHandler.get_int("AUTH", "max_failed_attempts", 5)
         self.lockout_duration_minutes = ConfigurationHandler.get_int("AUTH", "lockout_duration_minutes", 15)
         self.rate_limit_window_minutes = ConfigurationHandler.get_int("AUTH", "rate_limit_window_minutes", 5)
+        self.max_active_sessions = ConfigurationHandler.get_int("AUTH", "max_active_sessions", 5)
 
 
     @with_transaction(manager=None)
@@ -105,7 +106,6 @@ class AuthenticationService:
         )
 
         session.add(user)
-        session.flush()
 
         ip_hash = hash_data(kwargs.get("ip_address", "")) if kwargs.get("ip_address", "") else None
         ua_hash = hash_data(kwargs.get("user_agent", "")) if kwargs.get("user_agent", "") else None
@@ -134,7 +134,9 @@ class AuthenticationService:
 
         return {
             "user_id": user.id,
+            "username": user.username,
             "email": user.email,
+            "is_verified": user.is_verified,
         }
 
     @with_transaction(manager=None)
@@ -154,8 +156,6 @@ class AuthenticationService:
             )
         
         user.generate_email_verification_token()
-        session.add(user)
-        session.flush()
 
         self._mailtrap_client.send_verification_email(
             to_email=email,
@@ -171,7 +171,9 @@ class AuthenticationService:
 
         return {
             "user_id": user.id,
+            "username": user.username,
             "email": user.email,
+            "is_verified": user.is_verified,
         }
 
     @with_transaction(manager=None)
@@ -210,9 +212,6 @@ class AuthenticationService:
         user.email_verification_token = None
         user.email_verification_token_expires_at = None
 
-        session.add(user)
-        session.flush()
-
         self._mailtrap_client.send_welcome_email(
             to_email=user.email,
             template_variables={
@@ -227,7 +226,9 @@ class AuthenticationService:
 
         return {
             "user_id": user.id,
+            "username": user.username,
             "email": user.email,
+            "is_verified": user.is_verified,
         }
 
     @with_transaction(manager=None)
@@ -292,9 +293,6 @@ class AuthenticationService:
                 user.is_locked = False
                 user.locked_reason = None
                 user.locked_until = None
-
-                session.add(user)
-                session.flush()
             
         if not verify_password(password, user.hashed_password):
             # Başarısız login denemesini kaydet
@@ -305,7 +303,6 @@ class AuthenticationService:
                 failure_reason="Invalid credentials",
                 created_by=user.id
             )
-            session.flush()  # Login history'yi kaydetmek için flush
             
             # Rate limit kontrolü (yeni kayıt dahil)
             if self._login_history_repo._check_user_rate_limit(session, user_id=user.id, max_attempts=self.max_failed_attempts, window_minutes=self.rate_limit_window_minutes):
@@ -313,8 +310,6 @@ class AuthenticationService:
                 user.locked_reason = "Too many failed attempts"
                 user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=self.lockout_duration_minutes)
 
-                session.add(user)
-                session.flush()
 
                 raise BusinessRuleViolationError(
                     rule_name="rate_limited",
@@ -333,6 +328,11 @@ class AuthenticationService:
 
         access_token, access_token_expires_at = create_access_token(user_id=user.id, access_token_jti=access_token_jti, additional_claims=kwargs)
         refresh_token, refresh_token_expires_at = create_refresh_token(user_id=user.id, refresh_token_jti=refresh_token_jti, additional_claims=kwargs)
+
+        # Maksimum aktif session sayısını kontrol et, aşılıyorsa en eski session'ı revoke et
+        active_sessions = self._auth_session_repo._get_all_active_user_sessions(session, user_id=user.id, include_deleted=False)
+        if len(active_sessions) >= self.max_active_sessions:
+            self._auth_session_repo._revoke_oldest_session(session, user_id=user.id)
 
         self._auth_session_repo._create(
             session, 
@@ -353,9 +353,11 @@ class AuthenticationService:
             )
 
         return {
-            'user_id': user.id,
-            'access_token': access_token,
-            'refresh_token': refresh_token,
+            "user_id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
         }
 
     @with_transaction(manager=None)
@@ -395,10 +397,10 @@ class AuthenticationService:
         auth_session.is_revoked = True
         auth_session.revoked_at = datetime.now(timezone.utc)
         auth_session.revoked_by = payload['user_id']
-        session.add(auth_session)
 
         return {
             "success": True,
+            "message": "Logged out successfully",
         }
 
     @with_transaction(manager=None)
@@ -436,11 +438,10 @@ class AuthenticationService:
 
         user_id = payload['user_id']
         num_revoked = self._auth_session_repo._revoke_sessions(session, user_id=user_id)
-        # num_revoked == 0 normal bir durum olabilir (kullanıcının başka aktif session'ı olmayabilir)
-        # Bu bir hata değil, sadece bilgi amaçlı döndürülür
 
         return {
-            'sessions_revoked': num_revoked
+            "success": True,
+            "sessions_revoked": num_revoked,
         }
 
     @with_transaction(manager=None)
@@ -525,8 +526,6 @@ class AuthenticationService:
         auth_session.refresh_token_last_used_at = datetime.now(timezone.utc)
         auth_session.last_activity_at = datetime.now(timezone.utc)
 
-        session.add(auth_session)
-
         return {
             'user_id': user.id,
             'access_token': new_access_token,
@@ -544,28 +543,28 @@ class AuthenticationService:
             _, payload = validate_access_token(access_token)
         except Exception as e:
             return {
-                'valid': False,
-                'error': str(e)
+                "valid": False,
+                "error": str(e),
             }
                     
         access_token_jti = payload['jti']
         auth_session = self._auth_session_repo._get_by_access_token_jti(session, access_token_jti=access_token_jti, include_deleted=False)
         if not auth_session:
             return {
-                'valid': False,
-                'error': "Invalid access token"
+                "valid": False,
+                "error": "Invalid access token",
             }
 
         if auth_session.is_revoked:
             return {
-                'valid': False,
-                'error': "Access token is revoked"
+                "valid": False,
+                "error": "Access token is revoked",
             }
 
         if not is_token_valid(access_token):
             return {
-                'valid': False,
-                'error': "Invalid access token"
+                "valid": False,
+                "error": "Invalid access token",
             }
 
         # Ensure both datetimes are timezone-aware for comparison
@@ -576,11 +575,11 @@ class AuthenticationService:
         
         if expires_at < now:
             return {
-                'valid': False,
-                'error': "Access token has expired"
+                "valid": False,
+                "error": "Access token has expired",
             }
 
         return {
-            'valid': True,
-            'user_id': auth_session.user_id,
+            "valid": True,
+            "user_id": auth_session.user_id,
         }
