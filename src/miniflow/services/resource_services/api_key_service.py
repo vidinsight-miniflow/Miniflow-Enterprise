@@ -54,13 +54,8 @@ class ApiKeyService:
     def validate_api_key(self, session, *, full_api_key: str) -> Optional[Dict[str, Any]]:
         """
         Validate API key and return workspace info if valid
-        
-        Args:
-            full_api_key: Full API key string (e.g., "sk_live_...")
-        
-        Returns:
-            Dict with workspace info and permissions if valid, None otherwise
         """
+
         record = self._api_key_repo._get_by_api_key(session, full_api_key=full_api_key, include_deleted=False)
         if not record:
             return None
@@ -104,23 +99,6 @@ class ApiKeyService:
         tags: Optional[List[str]] = None,
         allowed_ips: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """
-        Create a new API key
-        
-        Args:
-            workspace_id: Workspace ID
-            owner_id: Owner user ID
-            name: API key name (unique within workspace)
-            key_prefix: Key prefix (default: "sk_live_")
-            description: Description
-            permissions: Permissions dict (default permissions used if not provided)
-            expires_at: Expiration date
-            tags: Tags list
-            allowed_ips: Allowed IP addresses list
-        
-        Returns:
-            Dict with full API key (only shown once)
-        """
         # Validate inputs
         if not name or not name.strip():
             raise InvalidInputError(field_name="name", message="API key name cannot be empty")

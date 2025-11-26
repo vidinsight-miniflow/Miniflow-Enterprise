@@ -3,7 +3,7 @@ from datetime import datetime, timezone, timedelta
 
 from src.miniflow.database import with_transaction, with_readonly_session
 from src.miniflow.database import DatabaseManager, RepositoryRegistry
-from ..database.models.enums import PasswordChangeReason
+from ...database.models.enums import PasswordChangeReason
 
 from src.miniflow.core.exceptions import BusinessRuleViolationError
 from src.miniflow.utils.helpers.encryption_helper import hash_password, verify_password
@@ -12,7 +12,6 @@ from src.miniflow.utils import ConfigurationHandler, MailTrapClient
 
 class UserService:
     def __init__(self):
-        self._db_manager: DatabaseManager = DatabaseManager()
         self._registry: RepositoryRegistry = RepositoryRegistry()
         self._mailtrap_client: MailTrapClient = MailTrapClient()
         
@@ -328,7 +327,7 @@ class UserService:
         session,
         *,
         user_id: str,
-        avatar_url: str,
+        avatar_url: Optional[str] = None,
         name: Optional[str] = None,
         surname: Optional[str] = None,
         country_code: Optional[str] = None,

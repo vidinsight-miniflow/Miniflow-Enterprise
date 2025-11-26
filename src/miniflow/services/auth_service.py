@@ -15,7 +15,6 @@ from src.miniflow.utils import ConfigurationHandler, MailTrapClient
 
 class AuthenticationService:
     def __init__(self):
-        self._db_manager: DatabaseManager = DatabaseManager()
         self._registry: RepositoryRegistry = RepositoryRegistry()
         self._mailtrap_client: MailTrapClient = MailTrapClient()
         

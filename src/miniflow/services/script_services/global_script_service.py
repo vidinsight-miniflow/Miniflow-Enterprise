@@ -13,7 +13,7 @@ from src.miniflow.utils.helpers.file_helper import (
 )
 
 
-class ScriptService:
+class GlobalScriptService:
     def __init__(self):
         self._registry = RepositoryRegistry()
         self._script_repo = self._registry.script_repository
@@ -250,4 +250,3 @@ class ScriptService:
             "items": items,
             "metadata": result.metadata.to_dict()
         }
-
