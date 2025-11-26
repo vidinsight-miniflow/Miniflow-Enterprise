@@ -18,13 +18,13 @@ class WorkspaceMemberRepository(BaseRepository[WorkspaceMember]):
 
     @BaseRepository._handle_db_exceptions
     def _get_owned_workspaces_by_user_id(self, session: Session, user_id: str, include_deleted: bool = False) -> List[WorkspaceMember]:
-        query = select(WorkspaceMember).where(WorkspaceMember.user_id == user_id, WorkspaceMember.role_name.lower() == "owner")
+        query = select(WorkspaceMember).where(WorkspaceMember.user_id == user_id, func.lower(WorkspaceMember.role_name) == "owner")
         query = self._apply_soft_delete_filter(query, include_deleted)
         return list(session.execute(query).scalars().all()) 
 
     @BaseRepository._handle_db_exceptions
     def _get_memberships_by_user_id(self, session: Session, user_id: str, include_deleted: bool = False) -> List[WorkspaceMember]:
-        query = select(WorkspaceMember).where(WorkspaceMember.user_id == user_id, WorkspaceMember.role_name.lower() != "owner")
+        query = select(WorkspaceMember).where(WorkspaceMember.user_id == user_id, func.lower(WorkspaceMember.role_name) != "owner")
         query = self._apply_soft_delete_filter(query, include_deleted)
         return list(session.execute(query).scalars().all())
     
