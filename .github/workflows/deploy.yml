@@ -93,7 +93,7 @@ jobs:
               
               # Environment dosyası oluştur
               echo "📝 Creating environment file..."
-              cat > .env << EOF
+              cat > .env <<EOF
               TEST_KEY=ThisKeyIsForConfigTest
               APP_ENV=dev
               DB_TYPE=sqlite
@@ -101,11 +101,12 @@ jobs:
               SECRET_KEY=${{ secrets.SECRET_KEY }}
               MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}
               EOF
+
               
               # Config dosyası oluştur
               echo "⚙️ Creating configuration..."
               mkdir -p configurations
-              cat > configurations/dev.ini << EOF
+              cat > configurations/dev.ini <<EOF
               [Test]
               value = ThisKeyIsForConfigTest
               
@@ -226,6 +227,7 @@ jobs:
             # Health check
             echo "🏥 Health checking on port ${PORT}..."
             sudo journalctl -u ${APP_NAME} -n 20 --no-pager
+            
 
   rollback:
     name: 🚨 Emergency Restart
