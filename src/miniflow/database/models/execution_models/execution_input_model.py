@@ -122,17 +122,11 @@ class ExecutionInput(BaseModel):
 
     # Node execution verisi - Execution zamanında anlık görüntü
     node_name = Column(String(100), nullable=False)
-    node_params = Column(JSON, default=lambda: {}, nullable=False)
+    params = Column(JSON, default=lambda: {}, nullable=False)
     
     # Script bilgileri - Execution zamanında anlık görüntü
     script_name = Column(String(100), nullable=False)
     script_path = Column(Text, nullable=False)
-    script_content = Column(Text, nullable=True)  # Script içeriği (anlık görüntü - execution sırasında değişmemeli)
-    
-    # Giriş/Çıkış şemaları
-    input_schema = Column(JSON, nullable=True)  # Beklenen giriş şeması (doğrulama için)
-    output_schema = Column(JSON, nullable=True)  # Beklenen çıkış şeması (doğrulama için)
-    input_data = Column(JSON, default=lambda: {}, nullable=False)  # Gerçek giriş verisi (JSON) - Trigger verisi ve önceki node çıktıları
 
     # İlişkiler
     execution = relationship("Execution", back_populates="execution_inputs")

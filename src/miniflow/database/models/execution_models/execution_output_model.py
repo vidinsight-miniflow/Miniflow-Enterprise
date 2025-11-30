@@ -86,7 +86,6 @@ class ExecutionOutput(BaseModel):
 
     # Execution durumu (PENDING, RUNNING, SUCCESS, FAILED, SKIPPED, TIMEOUT, CANCELLED)
     status = Column(String(20), default='PENDING', nullable=False, index=True)
-    exit_code = Column(Integer, nullable=True)  # 0 = başarılı, >0 = hata
 
     # Execution sonuçları
     result_data = Column(JSON, nullable=True, default=lambda: {})  # Node çıktı verisi
@@ -103,7 +102,6 @@ class ExecutionOutput(BaseModel):
     error_message = Column(Text, nullable=True)  # Kısa hata mesajı
     error_details = Column(JSON, nullable=True)  # Detaylı hata bilgisi (stack trace, vb.)
     retry_count = Column(Integer, default=0, nullable=False)  # Kaç kez retry edildi
-    is_retry = Column(Boolean, default=False, nullable=False)  # Bu bir retry mı?
 
     # Üst veri
     execution_metadata = Column(JSON, default=lambda: {}, nullable=True)  # Ek üst veri

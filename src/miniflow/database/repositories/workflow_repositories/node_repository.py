@@ -27,3 +27,16 @@ class NodeRepository(BaseRepository[Node]):
         )
         query = self._apply_soft_delete_filter(query, include_deleted)
         return session.execute(query).scalar_one_or_none()
+    
+    @BaseRepository._handle_db_exceptions
+    def _get_all_by_workflow_id(
+        self,
+        session: Session,
+        *,
+        workflow_id: str,
+        include_deleted: bool = False
+    ) -> List[Node]:
+        """Get all nodes by workflow_id"""
+        query = select(Node).where(Node.workflow_id == workflow_id)
+        query = self._apply_soft_delete_filter(query, include_deleted)
+        return session.execute(query).scalars().all()

@@ -100,28 +100,16 @@ class Execution(BaseModel):
     status = Column(Enum(ExecutionStatus), default=ExecutionStatus.PENDING, nullable=False, index=True)
     started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
     ended_at = Column(DateTime, nullable=True)
-    timeout_seconds = Column(Integer, nullable=True)  # Timeout limiti (saniye)
 
     # Execution verisi - Giriş ve çıkış
     trigger_data = Column(JSON, default=lambda: {}, nullable=False)  # Trigger'dan gelen input
     results = Column(JSON, default=lambda: {}, nullable=False)  # Final sonuçlar
-    
-    # Hata takibi
-    error_message = Column(Text, nullable=True)  # Kısa hata mesajı
-    error_details = Column(JSON, nullable=True)  # Detaylı hata bilgisi (stack trace, vb.)
-    
-    # Retry ve recovery
-    retry_count = Column(Integer, default=0, nullable=False)  # Kaç kez retry edildi
-    max_retries = Column(Integer, default=0, nullable=False)  # Maksimum retry sayısı
-    is_retry = Column(Boolean, default=False, nullable=False)  # Bu bir retry execution mı?
+
+    # Retry ve kurtarma
+    retry_count = Column(Integer, default=0, nullable=False)
+    max_retries = Column(Integer, default=0, nullable=False)
+    is_retry = Column(Boolean, default=False, nullable=False)
     parent_execution_id = Column(String(20), ForeignKey('executions.id', ondelete='SET NULL'), nullable=True)
-    
-    # Node ilerleme takibi (property olarak hesaplanır, kolon değil)
-    # pending_nodes, running_nodes, completed_nodes property olarak hesaplanır
-    
-    # Üst veri
-    triggered_by = Column(String(20), nullable=True, index=True)  # Kim tetikledi (user_id veya 'system')
-    execution_context = Column(JSON, default=lambda: {}, nullable=True)  # Ek bağlam
 
     # İlişkiler
     workspace = relationship("Workspace", foreign_keys="[Execution.workspace_id]", overlaps="executions")
@@ -136,29 +124,19 @@ class Execution(BaseModel):
     # ========================================================================================= YARDIMCI METODLAR =====
 
     @property
-    def calculate_duration(self):
+    def duration(self):
         """Süreyi hesapla ve güncelle"""
         if self.ended_at and self.started_at:
-            delta = self.ended_at - self.started_at
+            # Timezone-aware ve timezone-naive datetime'ları uyumlu hale getir
+            ended_at = self.ended_at
+            started_at = self.started_at
+            
+            # Eğer biri timezone-aware, diğeri timezone-naive ise, naive olanı UTC'ye çevir
+            if ended_at.tzinfo is None and started_at.tzinfo is not None:
+                ended_at = ended_at.replace(tzinfo=timezone.utc)
+            elif ended_at.tzinfo is not None and started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            
+            delta = ended_at - started_at
             return delta.total_seconds()
         return -1
-    
-    @property
-    def pending_nodes(self):
-        """Bekleyen node sayısını hesapla"""
-        return len([ei for ei in self.execution_inputs if ei.dependency_count > 0])
-    
-    @property
-    def running_nodes(self):
-        """Çalışan node sayısını hesapla"""
-        return len([eo for eo in self.execution_outputs if eo.status == 'RUNNING'])
-    
-    @property
-    def completed_nodes(self):
-        """Tamamlanan node sayısını hesapla (başarılı + başarısız)"""
-        return len([eo for eo in self.execution_outputs if eo.status in ['SUCCESS', 'FAILED', 'SKIPPED', 'TIMEOUT', 'CANCELLED']])
-    
-    @property
-    def total_nodes(self):
-        """Toplam node sayısını hesapla"""
-        return self.pending_nodes + self.running_nodes + self.completed_nodes

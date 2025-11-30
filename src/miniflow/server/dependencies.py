@@ -77,3 +77,11 @@ def get_node_service() -> NodeService:
 @lru_cache(maxsize=1)
 def get_edge_service() -> EdgeService:
     return EdgeService()
+
+@lru_cache(maxsize=1)
+def get_scheduler_service() -> SchedulerService:
+    return SchedulerService()
+
+@lru_cache(maxsize=1)
+def get_execution_service() -> ExecutionService:
+    return ExecutionService()

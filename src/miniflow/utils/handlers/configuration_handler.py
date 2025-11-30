@@ -101,12 +101,42 @@ class ConfigurationHandler:
     @classmethod
     def get_int(cls, section: str, key: str, fallback=None):
         """Get an integer value from configuration."""
-        return cls._parser.getint(section, key, fallback=fallback)
+        try:
+            value = cls._parser.getint(section, key, fallback=fallback)
+            # ConfigParser returns fallback as dict in some error cases
+            if isinstance(value, dict):
+                return fallback if isinstance(fallback, int) else None
+            return value if value is not None else fallback
+        except (ValueError, TypeError):
+            return fallback if isinstance(fallback, int) else None
+        except Exception:
+            return fallback if isinstance(fallback, int) else None
+
+    @classmethod
+    def get_float(cls, section: str, key: str, fallback=None):
+        """Get a float value from configuration."""
+        try:
+            value = cls._parser.getfloat(section, key, fallback=fallback)
+            if isinstance(value, dict):
+                return fallback if isinstance(fallback, (int, float)) else None
+            return value if value is not None else fallback
+        except (ValueError, TypeError):
+            return fallback if isinstance(fallback, (int, float)) else None
+        except Exception:
+            return fallback if isinstance(fallback, (int, float)) else None
 
     @classmethod
     def get_bool(cls, section: str, key: str, fallback=None):
         """Get a boolean value from configuration."""
-        return cls._parser.getboolean(section, key, fallback=fallback)
+        try:
+            value = cls._parser.getboolean(section, key, fallback=fallback)
+            if isinstance(value, dict):
+                return fallback if isinstance(fallback, bool) else None
+            return value if value is not None else fallback
+        except (ValueError, TypeError):
+            return fallback if isinstance(fallback, bool) else None
+        except Exception:
+            return fallback if isinstance(fallback, bool) else None
 
     @classmethod
     def get_list(cls, section: str, key: str, separator: str = ",", fallback=None):
@@ -119,4 +149,12 @@ class ConfigurationHandler:
     @classmethod
     def reload(cls):
         """Reload configuration file from disk."""
+        cls._initialized = False
         cls._load_configuration_file()
+        cls._initialized = True
+
+    @classmethod
+    def ensure_loaded(cls):
+        """Ensure configuration is loaded. Safe to call multiple times."""
+        if not cls._initialized:
+            cls.load_config()

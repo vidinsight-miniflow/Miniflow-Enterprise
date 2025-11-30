@@ -50,6 +50,14 @@ class ErrorCode(Enum):
     INTERNAL_ERROR = "INTERNAL_ERROR"                                               # 500
     NOT_IMPLEMENTED = "NOT_IMPLEMENTED"                                             # 501
 
+    # Scheduler Errors (500)
+    SCHEDULER_ERROR = "SCHEDULER_ERROR"                                             # 500
+    CONTEXT_CREATION_ERROR = "CONTEXT_CREATION_ERROR"                               # 500
+    PAYLOAD_PREPARATION_ERROR = "PAYLOAD_PREPARATION_ERROR"                         # 500
+    ENGINE_SUBMISSION_ERROR = "ENGINE_SUBMISSION_ERROR"                              # 500
+    RESULT_PROCESSING_ERROR = "RESULT_PROCESSING_ERROR"                              # 500
+    HANDLER_CONFIGURATION_ERROR = "HANDLER_CONFIGURATION_ERROR"                    # 500
+
 
 
 
@@ -325,3 +333,89 @@ class ExternalServiceRateLimitError(ExternalServiceError):
         self.original_error = original_error
         message = message or f"The external service '{service_name}' has rate-limited requests for operation '{operation_name}'. Please reduce your request frequency and try again later."
         super().__init__(ErrorCode.EXTERNAL_SERVICE_RATE_LIMIT_ERROR, message, error_details={"service_name": service_name, "operation_name": operation_name, "original_error": original_error})
+
+
+class SchedulerError(AppException):
+    """Scheduler errors"""
+    pass
+
+
+class ContextCreationError(SchedulerError):
+    def __init__(self, execution_input_id: str, original_error: Exception = None, message: str = None):
+        self.execution_input_id = execution_input_id
+        self.original_error = original_error
+        message = message or f"Failed to create execution context for execution input '{execution_input_id}'. The input may be invalid or the service may be experiencing issues."
+        error_details = {"execution_input_id": execution_input_id}
+        if original_error:
+            error_details["original_error"] = str(original_error)
+        super().__init__(ErrorCode.CONTEXT_CREATION_ERROR, message, error_details=error_details)
+
+
+class PayloadPreparationError(SchedulerError):
+    def __init__(self, execution_input_id: str, reason: str = None, original_error: Exception = None, message: str = None):
+        self.execution_input_id = execution_input_id
+        self.reason = reason
+        self.original_error = original_error
+        reason_text = f": {reason}" if reason else ""
+        message = message or f"Failed to prepare payload for execution input '{execution_input_id}'{reason_text}. The input data may be invalid or incomplete."
+        error_details = {"execution_input_id": execution_input_id}
+        if reason:
+            error_details["reason"] = reason
+        if original_error:
+            error_details["original_error"] = str(original_error)
+        super().__init__(ErrorCode.PAYLOAD_PREPARATION_ERROR, message, error_details=error_details)
+
+
+class EngineSubmissionError(SchedulerError):
+    def __init__(self, payload_count: int, attempt: int = None, original_error: Exception = None, message: str = None):
+        self.payload_count = payload_count
+        self.attempt = attempt
+        self.original_error = original_error
+        attempt_text = f" (attempt {attempt})" if attempt else ""
+        message = message or f"Failed to submit {payload_count} payload(s) to execution engine{attempt_text}. The engine may be unavailable or overloaded."
+        error_details = {"payload_count": payload_count}
+        if attempt:
+            error_details["attempt"] = attempt
+        if original_error:
+            error_details["original_error"] = str(original_error)
+        super().__init__(ErrorCode.ENGINE_SUBMISSION_ERROR, message, error_details=error_details)
+
+
+class ResultProcessingError(SchedulerError):
+    def __init__(self, execution_id: str = None, node_id: str = None, attempt: int = None, original_error: Exception = None, message: str = None):
+        self.execution_id = execution_id
+        self.node_id = node_id
+        self.attempt = attempt
+        self.original_error = original_error
+        ids_text = ""
+        if execution_id and node_id:
+            ids_text = f" for execution '{execution_id}', node '{node_id}'"
+        elif execution_id:
+            ids_text = f" for execution '{execution_id}'"
+        attempt_text = f" (attempt {attempt})" if attempt else ""
+        message = message or f"Failed to process execution result{ids_text}{attempt_text}. The result data may be invalid or the service may be experiencing issues."
+        error_details = {}
+        if execution_id:
+            error_details["execution_id"] = execution_id
+        if node_id:
+            error_details["node_id"] = node_id
+        if attempt:
+            error_details["attempt"] = attempt
+        if original_error:
+            error_details["original_error"] = str(original_error)
+        super().__init__(ErrorCode.RESULT_PROCESSING_ERROR, message, error_details=error_details)
+
+
+class HandlerConfigurationError(SchedulerError):
+    def __init__(self, handler_name: str, config_key: str = None, original_error: Exception = None, message: str = None):
+        self.handler_name = handler_name
+        self.config_key = config_key
+        self.original_error = original_error
+        key_text = f" (key: '{config_key}')" if config_key else ""
+        message = message or f"Failed to load configuration for handler '{handler_name}'{key_text}. Using default values."
+        error_details = {"handler_name": handler_name}
+        if config_key:
+            error_details["config_key"] = config_key
+        if original_error:
+            error_details["original_error"] = str(original_error)
+        super().__init__(ErrorCode.HANDLER_CONFIGURATION_ERROR, message, error_details=error_details)

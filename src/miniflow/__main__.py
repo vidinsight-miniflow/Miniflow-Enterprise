@@ -669,10 +669,34 @@ class MiniFlow:
             db_config = self._get_db_config()
             manager.initialize(db_config, auto_start=True, create_tables=False)
             print(f"[WORKER-{worker_pid}] Database connection established")
+        
+        # Start scheduler service (only in main worker or all workers depending on configuration)
+        try:
+            from src.miniflow.services.execution_services import SchedulerService
+            scheduler_service = SchedulerService()
+            if scheduler_service.start():
+                print(f"[WORKER-{worker_pid}] SchedulerService started")
+                # Store scheduler service in manager for shutdown
+                manager._scheduler_service = scheduler_service
+            else:
+                print(f"[WORKER-{worker_pid}] Warning: SchedulerService failed to start")
+        except Exception as e:
+            print(f"[WORKER-{worker_pid}] Warning: Failed to start SchedulerService: {str(e)}")
+            # Don't fail startup if scheduler fails - it's optional for API-only mode
+        
         return manager
 
     def _worker_shutdown(self, worker_pid: int, manager: DatabaseManager):
         """Worker kapatma"""
+        # Stop scheduler service if it exists
+        if hasattr(manager, '_scheduler_service') and manager._scheduler_service:
+            try:
+                print(f"[WORKER-{worker_pid}] Stopping SchedulerService...")
+                manager._scheduler_service.stop()
+                print(f"[WORKER-{worker_pid}] SchedulerService stopped")
+            except Exception as e:
+                print(f"[WORKER-{worker_pid}] Error stopping SchedulerService: {str(e)}")
+        
         if manager.is_started:
             manager.engine.stop()
 

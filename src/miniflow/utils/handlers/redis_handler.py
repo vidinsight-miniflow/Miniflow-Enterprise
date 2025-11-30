@@ -53,7 +53,7 @@ class RedisClient:
     @classmethod
     def load_redis_configurations(cls):
         """Load Redis configuration from configuration handler."""
-        ConfigurationHandler.load_config()
+        ConfigurationHandler.ensure_loaded()
 
         host = ConfigurationHandler.get('Redis', 'host', fallback='localhost')
         port = ConfigurationHandler.get_int('Redis', 'port', fallback=6379)

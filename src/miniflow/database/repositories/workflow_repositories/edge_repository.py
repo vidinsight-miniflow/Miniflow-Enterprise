@@ -29,3 +29,33 @@ class EdgeRepository(BaseRepository[Edge]):
         )
         query = self._apply_soft_delete_filter(query, include_deleted)
         return session.execute(query).scalar_one_or_none()
+
+    @BaseRepository._handle_db_exceptions
+    def _get_all_by_workflow_id(
+        self,
+        session: Session,
+        *,
+        workflow_id: str,
+        include_deleted: bool = False
+    ) -> List[Edge]:
+        """Get all edges by workflow_id"""
+        query = select(Edge).where(Edge.workflow_id == workflow_id)
+        query = self._apply_soft_delete_filter(query, include_deleted)
+        return session.execute(query).scalars().all()
+
+    @BaseRepository._handle_db_exceptions
+    def _get_by_from_node_id(
+        self,
+        session: Session,
+        *,
+        workflow_id: str,
+        from_node_id: str,
+        include_deleted: bool = False
+    ) -> List[Edge]:
+        """Get all edges where from_node_id matches"""
+        query = select(Edge).where(
+            Edge.workflow_id == workflow_id,
+            Edge.from_node_id == from_node_id
+        )
+        query = self._apply_soft_delete_filter(query, include_deleted)
+        return list(session.execute(query).scalars().all())

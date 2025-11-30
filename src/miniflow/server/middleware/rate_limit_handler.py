@@ -285,25 +285,25 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Not: Middleware dependency'lerden önce çalışır, bu yüzden state'de olmayabilir
         if hasattr(request.state, 'user_id') and request.state.user_id:
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] User ID from state: {request.state.user_id}")
+            print(f"[RATE-LIMIT] User ID from state: {request.state.user_id}")
             return request.state.user_id
         
         # Eğer state'de yoksa header'dan parse et (middleware dependency'lerden önce çalışır)
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             if DEBUG_RATE_LIMIT:
-                print("[RATE-LIMIT] No Authorization header found")
+            print("[RATE-LIMIT] No Authorization header found")
             return None
         
         if not auth_header.startswith("Bearer "):
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] Authorization header doesn't start with 'Bearer ': {auth_header[:20]}...")
+            print(f"[RATE-LIMIT] Authorization header doesn't start with 'Bearer ': {auth_header[:20]}...")
             return None
         
         token = auth_header.replace("Bearer ", "").strip()
         if not token:
             if DEBUG_RATE_LIMIT:
-                print("[RATE-LIMIT] Token is empty after removing 'Bearer '")
+            print("[RATE-LIMIT] Token is empty after removing 'Bearer '")
             return None
         
         try:
@@ -312,7 +312,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             
             if not is_valid or not payload:
                 if DEBUG_RATE_LIMIT:
-                    print("[RATE-LIMIT] Token validation failed or payload is empty")
+                print("[RATE-LIMIT] Token validation failed or payload is empty")
                 return None
             
             user_id = payload.get("user_id") or None
@@ -323,15 +323,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 # Token'ı da kaydet (authenticate_user optimization için)
                 request.state._validated_token = token
                 if DEBUG_RATE_LIMIT:
-                    print(f"[RATE-LIMIT] User ID saved to request.state: {user_id}")
+                print(f"[RATE-LIMIT] User ID saved to request.state: {user_id}")
             
             return user_id
         except Exception as e:
             # Token geçersiz veya parse edilemedi
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] Token parse error: {type(e).__name__}: {str(e)}")
-                import traceback
-                print(f"[RATE-LIMIT] Traceback: {traceback.format_exc()}")
+            print(f"[RATE-LIMIT] Token parse error: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"[RATE-LIMIT] Traceback: {traceback.format_exc()}")
             return None
     
     def _has_api_key(self, request: Request) -> Optional[dict]:
@@ -350,33 +350,33 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         if DEBUG_RATE_LIMIT:
-            print(f"[RATE-LIMIT] Middleware çalışıyor - Path: {request.url.path}")
+        print(f"[RATE-LIMIT] Middleware çalışıyor - Path: {request.url.path}")
         
         if self._should_skip_rate_limit(request.url.path):
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] Path exclude edildi: {request.url.path}")
+            print(f"[RATE-LIMIT] Path exclude edildi: {request.url.path}")
             return await call_next(request)
         
         # Redis client kontrolü - her request'te kontrol et (worker process'lerde farklı olabilir)
         from src.miniflow.utils import RedisClient
         if not RedisClient._initialized:
             if DEBUG_RATE_LIMIT:
-                print("[RATE-LIMIT] Redis initialized değil, initialize ediliyor...")
+            print("[RATE-LIMIT] Redis initialized değil, initialize ediliyor...")
             try:
                 RedisClient.initialize()
                 if DEBUG_RATE_LIMIT:
-                    print("[RATE-LIMIT] Redis başarıyla initialize edildi")
+                print("[RATE-LIMIT] Redis başarıyla initialize edildi")
             except Exception as e:
                 # Redis bağlantı hatası - rate limit atla, request devam etsin
                 if DEBUG_RATE_LIMIT:
-                    print(f"[RATE-LIMIT] Redis bağlantı hatası: {type(e).__name__}: {str(e)}")
-                    print("[RATE-LIMIT] Rate limit atlanıyor, request devam ediyor")
+                print(f"[RATE-LIMIT] Redis bağlantı hatası: {type(e).__name__}: {str(e)}")
+                print("[RATE-LIMIT] Rate limit atlanıyor, request devam ediyor")
                 return await call_next(request)
         
         if not RedisClient._client:
             # Redis client yoksa rate limit atla
             if DEBUG_RATE_LIMIT:
-                print("[RATE-LIMIT] Redis client yok, rate limit atlanıyor")
+            print("[RATE-LIMIT] Redis client yok, rate limit atlanıyor")
             return await call_next(request)
         
         api_key_info = self._has_api_key(request)
@@ -384,7 +384,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             workspace_id = api_key_info.get("workspace_id")
             plan_id = api_key_info.get("workspace_plan_id")
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] API Key detected for workspace: {workspace_id}")
+            print(f"[RATE-LIMIT] API Key detected for workspace: {workspace_id}")
             try:
                 self.api_key_limiter.check_limit(workspace_id, plan_id)
             except (ApiKeyMinuteRateLimitExceededError, ApiKeyHourRateLimitExceededError, ApiKeyDayRateLimitExceededError) as e:
@@ -403,7 +403,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 from src.miniflow.utils import RedisClient
                 if not RedisClient._client:
                     if DEBUG_RATE_LIMIT:
-                        print("[RATE-LIMIT] Redis client not initialized, skipping user rate limit")
+                    print("[RATE-LIMIT] Redis client not initialized, skipping user rate limit")
                     return await call_next(request)
                 
                 self.user_limiter.check_limit(user_id)
@@ -412,7 +412,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 raise HTTPException(status_code=429, detail=str(e)) from e
             except Exception as e:
                 if DEBUG_RATE_LIMIT:
-                    print(f"[RATE-LIMIT] User rate limit error: {type(e).__name__}: {str(e)}")
+                print(f"[RATE-LIMIT] User rate limit error: {type(e).__name__}: {str(e)}")
                 # Redis hatası veya başka bir hata - sessizce atla, request devam etsin
                 pass
             
@@ -451,7 +451,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             from src.miniflow.utils import RedisClient
             if not RedisClient._client:
                 if DEBUG_RATE_LIMIT:
-                    print("[RATE-LIMIT] Redis client not initialized, skipping IP rate limit")
+                print("[RATE-LIMIT] Redis client not initialized, skipping IP rate limit")
                 return await call_next(request)
             
             self.ip_limiter.check_limit(client_ip)
@@ -460,7 +460,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             raise HTTPException(status_code=429, detail=str(e)) from e
         except Exception as e:
             if DEBUG_RATE_LIMIT:
-                print(f"[RATE-LIMIT] IP rate limit error: {type(e).__name__}: {str(e)}")
+            print(f"[RATE-LIMIT] IP rate limit error: {type(e).__name__}: {str(e)}")
             # Redis hatası veya başka bir hata - sessizce atla, request devam etsin
             pass
         
