@@ -185,7 +185,7 @@ jobs:
               verification_template_id=2d9b707a-3b29-44a1-a0a0-8a8efe552fce
               password_reset_template_id=6c39810f-46c5-4e9d-a32e-8dc5e98d2b95
               notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399
-              EOF # <-- BAŞINDA SADECE TAB KARAKTERİ VAR
+              EOF
               
               # Database setup
               echo "🗄️ Setting up database..."
@@ -214,7 +214,7 @@ jobs:
               
               [Install]
               WantedBy=multi-user.target
-              SERVICEEOF # <-- BAŞINDA SADECE TAB KARAKTERİ VAR
+              SERVICEEOF
               
               # Systemd'yı yenile ve servisi etkinleştir
               sudo systemctl daemon-reload
