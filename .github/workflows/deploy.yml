@@ -174,15 +174,7 @@ jobs:
             WorkingDirectory=${TARGET_DIR}
             Environment="PATH=${TARGET_DIR}/venv/bin"
             EnvironmentFile=${TARGET_DIR}/.env
-            ExecStart=${TARGET_DIR}/venv/bin/gunicorn \
-              -w 4 \
-              -b 0.0.0.0:${TARGET_PORT} \
-              --timeout 120 \
-              --access-logfile ${SHARED_DIR}/logs/access.log \
-              --error-logfile ${SHARED_DIR}/logs/error.log \
-              --capture-output \
-              --enable-stdio-inheritance \
-              "src.miniflow:create_app()"
+            ExecStart="/usr/bin/python3 -m src.miniflow run"
             
             Restart=always
             RestartSec=10
