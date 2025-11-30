@@ -1,4 +1,5 @@
 name: MiniFlow CI/CD Pipeline
+
 on:
   push:
     branches: [main]
@@ -8,11 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       rollback:
-        description: 'Enable rollback mode'
+        description: 'Restart service'
         type: boolean
         default: false
+
 env:
   PYTHON_VERSION: "3.11"
+
 jobs:
   deploy-production:
     name: 🚀 Deploy to Production
@@ -22,16 +25,13 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://miniflow.vidinsight.com.tr  
-    concurrency:
-      group: production-deployment
-      cancel-in-progress: false
+      url: http://miniflow.vidinsight.com.tr:9000
     
     steps:
-      - name: Blue-Green Deployment
+      - name: Deploy Application
         uses: appleboy/ssh-action@v1.0.3
         env:
-          VERSION: ${{ needs.code-quality.outputs.version }}
+          VERSION: ${{ github.run_number }}
           GITHUB_REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -44,488 +44,139 @@ jobs:
           script: |
             set -euo pipefail
             
-            echo "🚀 MiniFlow Production Deployment v${VERSION}"
-            echo "🌐 Domain: https://miniflow.vidinsight.com.tr  "
-            echo "👤 User: ubuntu (primary user)"
+            echo "🚀 Deploying MiniFlow v${VERSION}"
+            echo "🌐 Direct Access: http://miniflow.vidinsight.com.tr:9000"
             
-            # Configuration - Ubuntu kullanıcısına göre ayarlı
+            # Basit konfigürasyon
             APP_NAME="miniflow"
-            DEPLOY_USER="ubuntu"
-            DEPLOY_ROOT="/opt/miniflow"
-            BLUE_DIR="${DEPLOY_ROOT}/blue"
-            GREEN_DIR="${DEPLOY_ROOT}/green"
-            SHARED_DIR="${DEPLOY_ROOT}/shared"
-            CURRENT_LINK="${DEPLOY_ROOT}/current"
+            APP_DIR="/opt/miniflow/app"
+            DATA_DIR="/opt/miniflow/data"
+            LOG_DIR="/opt/miniflow/logs"
             DOMAIN="miniflow.vidinsight.com.tr"
+            PORT=9000
             
-            # Create directory structure with ubuntu ownership
-            sudo mkdir -p "${BLUE_DIR}" "${GREEN_DIR}" "${SHARED_DIR}"/{data,logs,backups,ssl}
-            sudo chown -R ${DEPLOY_USER}:${DEPLOY_USER} "${DEPLOY_ROOT}"
+            # Dizinleri oluştur
+            sudo mkdir -p "${APP_DIR}" "${DATA_DIR}" "${LOG_DIR}"
+            sudo chown -R ubuntu:ubuntu /opt/miniflow
             
-            # Determine current and target environments
-            if [ -L "${CURRENT_LINK}" ]; then
-              CURRENT_ENV=$(basename "$(readlink -f "${CURRENT_LINK}")")
-              if [ "${CURRENT_ENV}" = "blue" ]; then
-                TARGET_ENV="green"
-                TARGET_DIR="${GREEN_DIR}"
-                TARGET_PORT=8000
-              else
-                TARGET_ENV="blue"
-                TARGET_DIR="${BLUE_DIR}"
-                TARGET_PORT=8000
-              fi
-            else
-              CURRENT_ENV=""
-              TARGET_ENV="blue"
-                TARGET_DIR="${BLUE_DIR}"
-                TARGET_PORT=8000
-            fi
-            
-            echo "📊 Deployment: ${CURRENT_ENV:-none} → ${TARGET_ENV} (Port: ${TARGET_PORT})"
-            
-            # Backup SQLite database
-            if [ -f "${SHARED_DIR}/data/miniflow.db" ]; then
-              echo "💾 Backing up database..."
-              BACKUP_FILE="${SHARED_DIR}/backups/miniflow_$(date +%Y%m%d-%H%M%S).db"
-              cp "${SHARED_DIR}/data/miniflow.db" "${BACKUP_FILE}"
-              chmod 600 "${BACKUP_FILE}"
-              echo "✅ Backup saved: ${BACKUP_FILE}"
-            fi
-            
-            # Clean target directory
-            rm -rf "${TARGET_DIR}"
-            mkdir -p "${TARGET_DIR}"
-            
-            # Clone repository
+            # Eski kodu sil ve yeni kodu çek
+            rm -rf "${APP_DIR}"
             echo "📥 Cloning repository..."
             git clone --depth 1 --branch main \
               https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \
-              "${TARGET_DIR}"
+              "${APP_DIR}"
             
-            cd "${TARGET_DIR}"
+            cd "${APP_DIR}"
             
-            # Create virtual environment
-            echo "🐍 Creating virtual environment..."
-            python3.11 -m venv venv
-            source venv/bin/activate
-            
-            # Install dependencies
+            # Bağımlılıkları yükle (GLOBAL)
             echo "📦 Installing dependencies..."
-            pip install --upgrade pip setuptools wheel
-            pip install -r requirements.txt
-            pip install gunicorn
+            pip3.11 install --user --upgrade pip setuptools wheel
+            pip3.11 install --user -r requirements.txt
             
-            # Create environment file
-            echo "📝 Creating environment file..."
+            # Environment dosyası oluştur
             cat > .env << EOF
-            TEST_KEY=ThisKeyIsForConfigTest
-            APP_ENV=dev
+            APP_ENV=production
             DB_TYPE=sqlite
-            DATABASE_URL=sqlite:///${SHARED_DIR}/data/miniflow.db
-            CONFIG_PATH=./configurations/dev.ini
+            DATABASE_URL=sqlite:///${DATA_DIR}/miniflow.db
+            CONFIG_PATH=./configurations/prod.ini
             JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             SERVER_HOST=0.0.0.0
-            SERVER_PORT=${TARGET_PORT}
+            SERVER_PORT=${PORT}
             LOG_LEVEL=${{ secrets.LOG_LEVEL || 'WARNING' }}
             DOMAIN=${DOMAIN}
             EOF
             
-            # Create production config
+            # Config dosyası oluştur
             mkdir -p configurations
-            cat > configurations/dev.ini << EOF
-            [Test]
-            value = ThisKeyIsForConfigTest
+            cat > configurations/prod.ini << EOF
+            [app]
+            name = MiniFlow
+            environment = production
+            debug = false
             
-            [Database]
-            db_type = sqlite
-            db_path = ./miniflow.db
-            db_name = miniflow
-            db_host = localhost
-            db_port = 5432
-            db_user = postgres
-            db_password =
-            seed_data_path = ./seeds/
-            
-            [FILE OPERATIONS]
-            max_file_size_mb = 100
-            allowed_extensions = .pdf,.doc,.docx,.txt,.rtf,.odt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.mp4,.avi,.mov,.wmv,.flv,.mkv,.webm,.mp3,.wav,.ogg,.m4a,.flac,.zip,.tar,.gz,.rar,.7z,.json,.xml,.yaml,.yml
-            blocked_extensions = .exe,.bat,.cmd,.com,.pif,.scr,.vbs,.js,.jar,.msi,.app,.deb,.rpm,.dmg,.pkg,.sh,.bash,.zsh,.fish,.ps1,.psm1,.psd1,.py,.rb,.pl,.php,.cgi,.asp,.aspx,.jsp,.html,.htm,.css,.sys,.dll,.so,.dylib,.reg,.inf,.msp,.gadget,.lnk,.apk
-            allowed_mime_types = application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation,image/jpeg,image/png,image/gif,image/bmp,image/webp,image/svg+xml,video/mp4,video/x-msvideo,video/quicktime,video/x-ms-wmv,video/x-flv,video/x-matroska,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac,application/zip,application/x-tar,application/gzip,application/x-rar-compressed,application/x-7z-compressed,application/json,application/xml,text/yaml,text/yml
-            
-            [CUSTOM SCRIPTS]
-            allowed_script_extensions = .py
-            allowed_script_mime_types = text/x-python
-            max_script_size_mb = 1
-            script_validation_enabled = true
-            
-            [GLOBAL SCRIPTS]
-            allowed_script_extensions = .py
-            allowed_script_mime_types = text/x-python
-            max_script_size_mb = 5
-            
-            [AUTH]
-            max_failed_attempts = 5
-            lockout_duration_minutes = 15
-            rate_limit_window_minutes = 5
-            max_active_sessions = 5
-            max_password_history_count = 3
-            
-            [JWT Settings]
-            jwt_access_token_expire_minutes = 60
-            jwt_refresh_token_expire_days = 7
-            access_token_type = access
-            refresh_token_type = refresh
-            
-            [Server]
-            title = Miniflow Enterprise API
-            description = Workflow automation and management API
-            version = 1.0.0
-            allowed_origins = "https://miniflow.vidinsight.com.tr"
+            [server]
             host = 0.0.0.0
-            port = 8000
-            reload = True
+            port = ${PORT}
             workers = 1
             
-            [Rate Limitting]
-            ip_minute_limit = 1000
-            ip_hour_limit = 10000
-            ip_day_limit = 100000
-            user_minute_limit = 600
-            user_hour_limit = 6000
-            user_day_limit = 60000
+            [database]
+            type = sqlite
+            path = ${DATA_DIR}/miniflow.db
             
-            [Redis]
-            host = localhost
-            port = 6379
-            db = 0
-            password =
-            max_connections = 50
-            socket_timeout = 5
-            socket_connect_timeout = 5
-            decode_responses = True
-            
-            [Mailtrap]
-            sender_email=enes@vidinsight.com.tr
-            sender_name=vidinsight
-            welcome_template_id=d2945577-5fff-4cb8-bcff-ebe7fbaf713c
-            verification_template_id=2d9b707a-3b29-44a1-a0a0-8a8efe552fce
-            password_reset_template_id=6c39810f-46c5-4e9d-a32e-8dc5e98d2b95
-            notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399
+            [logging]
+            level = WARNING
+            file = ${LOG_DIR}/app.log
             EOF
             
-            # Run database setup/migrations
+            # Database setup
             echo "🗄️ Setting up database..."
-            python -m src.miniflow setup
-            python -m src.miniflow migrate || echo "No migrations needed"
+            python3.11 -m src.miniflow setup
+            python3.11 -m src.miniflow migrate || echo "No migrations"
             
-            # Create systemd service for target (ubuntu user)
+            # Basit systemd servisi oluştur
             echo "⚙️ Creating systemd service..."
-            sudo tee /etc/systemd/system/${APP_NAME}-${TARGET_ENV}.service > /dev/null << SERVICEEOF
+            sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null << SERVICEEOF
             [Unit]
-            Description=MiniFlow Production ${TARGET_ENV} v${VERSION}
+            Description=MiniFlow Application v${VERSION}
             After=network.target
             
             [Service]
             Type=simple
-            User=${DEPLOY_USER}
-            Group=${DEPLOY_USER}
-            WorkingDirectory=${TARGET_DIR}
-            Environment="PATH=${TARGET_DIR}/venv/bin"
-            EnvironmentFile=${TARGET_DIR}/.env
-            ExecStart="/usr/bin/python3 -m src.miniflow run"
+            User=ubuntu
+            WorkingDirectory=${APP_DIR}
+            Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
+            EnvironmentFile=${APP_DIR}/.env
+            ExecStart=/usr/bin/python3.11 -m src.miniflow run
             
             Restart=always
             RestartSec=10
-            StandardOutput=append:${SHARED_DIR}/logs/systemd.log
-            StandardError=append:${SHARED_DIR}/logs/error.log
-            
-            # Security Hardening
-            NoNewPrivileges=true
-            PrivateTmp=true
-            ProtectSystem=strict
-            ProtectHome=true
-            ReadWritePaths=${SHARED_DIR}
+            StandardOutput=append:${LOG_DIR}/app.log
+            StandardError=append:${LOG_DIR}/error.log
             
             [Install]
             WantedBy=multi-user.target
             SERVICEEOF
             
-            # Reload and start target service
+            # Servisi yenile ve başlat
             sudo systemctl daemon-reload
-            sudo systemctl enable ${APP_NAME}-${TARGET_ENV}
+            sudo systemctl enable ${APP_NAME}
+            sudo systemctl restart ${APP_NAME}
             
-            echo "▶️ Starting ${TARGET_ENV} service..."
-            sudo systemctl restart ${APP_NAME}-${TARGET_ENV}
-            
-            # Wait for service to initialize
-            sleep 5
-            
-            # Health check with retries
-            echo "🏥 Health checking ${TARGET_ENV}..."
-            for i in {1..10}; do
-              if curl -f -s http://localhost:${TARGET_PORT}/ > /dev/null 2>&1; then
-                echo "✅ ${TARGET_ENV} is healthy!"
+            # Health check
+            echo "🏥 Health checking..."
+            for i in {1..20}; do
+              if curl -f -s http://localhost:${PORT}/health > /dev/null 2>&1; then
+                echo "✅ Application is running!"
                 break
               fi
-              if [ $i -eq 10 ]; then
-                echo "❌ Health check failed on ${TARGET_ENV}!"
-                echo "📋 Service status:"
-                sudo systemctl status ${APP_NAME}-${TARGET_ENV} --no-pager
-                echo ""
-                echo "📝 Recent logs:"
-                sudo journalctl -u ${APP_NAME}-${TARGET_ENV} -n 20 --no-pager
-                sudo systemctl stop ${APP_NAME}-${TARGET_ENV}
+              if [ $i -eq 20 ]; then
+                echo "❌ Health check failed!"
+                sudo journalctl -u ${APP_NAME} -n 20 --no-pager
                 exit 1
               fi
-              if [ $((i % 10)) -eq 0 ]; then
-                echo "⏳ Attempt $i/60... (checking logs)"
-                sudo journalctl -u ${APP_NAME}-${TARGET_ENV} -n 50 --no-pager
-              else
-                echo "⏳ Attempt $i/60..."
-              fi
-              sleep 3
+              sleep 2
             done
             
-            # Setup SSL with Certbot if not exists
-            if [ ! -f "${SHARED_DIR}/ssl/fullchain.pem" ]; then
-              echo "🔒 Setting up SSL certificate..."
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq certbot python3-certbot-nginx
-              
-              # Request certificate
-              echo "📜 Obtaining SSL certificate..."
-              sudo certbot certonly --nginx \
-                -d ${DOMAIN} \
-                --non-interactive \
-                --agree-tos \
-                --email ${{ secrets.SSL_EMAIL || 'admin@vidinsight.com.tr' }} \
-                --cert-name miniflow
-            
-              # Copy certs to shared directory
-              if [ -d "/etc/letsencrypt/live/miniflow" ]; then
-                sudo cp /etc/letsencrypt/live/miniflow/fullchain.pem ${SHARED_DIR}/ssl/
-                sudo cp /etc/letsencrypt/live/miniflow/privkey.pem ${SHARED_DIR}/ssl/
-                sudo chown ${DEPLOY_USER}:${DEPLOY_USER} ${SHARED_DIR}/ssl/*
-                echo "✅ SSL certificates copied to shared directory"
-              else
-                echo "❌ SSL certificate directory not found!"
-                exit 1
-              fi
-              
-              # Setup auto-renewal cron job
-              echo "0 0 * * 0 root certbot renew --quiet && cp /etc/letsencrypt/live/miniflow/* ${SHARED_DIR}/ssl/ && systemctl reload nginx" | sudo tee /etc/cron.d/certbot-renewal > /dev/null
-              sudo chmod 644 /etc/cron.d/certbot-renewal
-            fi
-            
-            # Generate Nginx configuration with current port
-            echo "🔧 Configuring Nginx..."
-            sudo tee /etc/nginx/sites-available/${APP_NAME} > /dev/null << NGINXEOF
-            upstream miniflow_backend {
-                server localhost:${TARGET_PORT} max_fails=3 fail_timeout=30s;
-                keepalive 32;
-            }
-            
-            # HTTP → HTTPS redirect
-            server {
-                listen 80;
-                listen [::]:80;
-                server_name ${DOMAIN} www.${DOMAIN};
-                
-                location /.well-known/acme-challenge/ {
-                    root /var/www/certbot;
-                }
-                
-                location / {
-                    return 301 https://\$host\$request_uri;
-                }
-            }
-            
-            # HTTPS server
-            server {
-                listen 443 ssl http2;
-                listen [::]:443 ssl http2;
-                server_name ${DOMAIN} www.${DOMAIN};
-                
-                # SSL Configuration
-                ssl_certificate ${SHARED_DIR}/ssl/fullchain.pem;
-                ssl_certificate_key ${SHARED_DIR}/ssl/privkey.pem;
-                ssl_protocols TLSv1.2 TLSv1.3;
-                ssl_ciphers HIGH:!aNULL:!MD5;
-                ssl_prefer_server_ciphers on;
-                ssl_session_cache shared:SSL:10m;
-                ssl_session_timeout 10m;
-                
-                # Security Headers
-                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-                add_header X-Frame-Options "SAMEORIGIN" always;
-                add_header X-Content-Type-Options "nosniff" always;
-                add_header X-XSS-Protection "1; mode=block" always;
-                
-                client_max_body_size 100M;
-                client_body_timeout 120s;
-                
-                # Proxy settings
-                location / {
-                    proxy_pass http://miniflow_backend;
-                    proxy_http_version 1.1;
-                    
-                    proxy_set_header Host \$host;
-                    proxy_set_header X-Real-IP \$remote_addr;
-                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto \$scheme;
-                    proxy_set_header Connection "";
-                    
-                    proxy_connect_timeout 60s;
-                    proxy_send_timeout 60s;
-                    proxy_read_timeout 60s;
-                    
-                    proxy_buffering on;
-                    proxy_buffer_size 4k;
-                    proxy_buffers 8 4k;
-                }
-                
-                # Health check endpoint
-                location /health {
-                    proxy_pass http://miniflow_backend/health;
-                    access_log off;
-                }
-                
-                # Static files
-                location /static {
-                    alias ${SHARED_DIR}/static;
-                    expires 30d;
-                    add_header Cache-Control "public, immutable";
-                }
-                
-                # Favicon
-                location = /favicon.ico {
-                    log_not_found off;
-                    access_log off;
-                }
-            }
-            NGINXEOF
-            
-            # Enable site and reload Nginx
-            sudo ln -sf /etc/nginx/sites-available/${APP_NAME} /etc/nginx/sites-enabled/
-            sudo rm -f /etc/nginx/sites-enabled/default
-            
-            echo "🧪 Testing Nginx configuration..."
-            sudo nginx -t
-            
-            echo "🔄 Reloading Nginx..."
-            sudo systemctl reload nginx
-            
-            # Final production health check via HTTPS
-            echo "🏥 Final health check via HTTPS..."
-            sleep 5
-            
-            # Check HTTP redirect
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${DOMAIN}/health)
-            if [ "$HTTP_CODE" != "301" ] && [ "$HTTP_CODE" != "302" ]; then
-              echo "⚠️ Warning: HTTP redirect not working (got ${HTTP_CODE})"
-            else
-              echo "✅ HTTP → HTTPS redirect working"
-            fi
-            
-            # Check HTTPS
-            if ! curl -f -k https://localhost/health > /dev/null 2>&1; then
-              echo "❌ HTTPS health check failed!"
-              exit 1
-            else
-              echo "✅ HTTPS health check passed"
-            fi
-            
-            # Update current symlink atomically
-            ln -sfn "${TARGET_DIR}" "${CURRENT_LINK}.new"
-            mv -Tf "${CURRENT_LINK}.new" "${CURRENT_LINK}"
-            echo "✅ Switched to ${TARGET_ENV} environment"
-            
-            # Gracefully stop old environment
-            if [ -n "${CURRENT_ENV}" ]; then
-              echo "🛑 Stopping old ${CURRENT_ENV} environment..."
-              sudo systemctl stop ${APP_NAME}-${CURRENT_ENV} || true
-              sudo systemctl disable ${APP_NAME}-${CURRENT_ENV} || true
-            fi
-            
-            # Cleanup old backups (keep last 30 days)
-            echo "🧹 Cleaning old backups..."
-            find "${SHARED_DIR}/backups" -name "*.db" -mtime +30 -delete 2>/dev/null || true
-            
             echo ""
-            echo "✅ Production deployment v${VERSION} completed successfully!"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🌐 URL: https://miniflow.vidinsight.com.tr/health "
-            echo "📦 Version: ${VERSION}"
-            echo "🎯 Active Environment: ${TARGET_ENV}"
-            echo "🔌 Port: ${TARGET_PORT}"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # Show final service status
-            echo ""
-            echo "📊 Service Status:"
-            sudo systemctl status ${APP_NAME}-${TARGET_ENV} --no-pager
+            echo "✅ Deployment completed!"
+            echo "Direct access: http://${DOMAIN}:${PORT}"
+            echo "Logs: sudo journalctl -u ${APP_NAME} -f"
 
       - name: Test deployment
         run: |
-          echo "🧪 Testing deployment..."
-          sleep 10
-          
-          # Test HTTPS health endpoint
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://miniflow.vidinsight.com.tr/health )
-          if [ "$RESPONSE" = "200" ]; then
-            echo "✅ HTTPS health check passed!"
-          else
-            echo "❌ HTTPS health check failed! (HTTP ${RESPONSE})"
-            exit 1
-          fi
-          
-          # Test HTTP redirect
-          REDIRECT=$(curl -s -o /dev/null -w "%{http_code}" http://miniflow.vidinsight.com.tr/health )
-          if [ "$REDIRECT" = "301" ] || [ "$REDIRECT" = "302" ]; then
-            echo "✅ HTTP → HTTPS redirect working!"
-          else
-            echo "⚠️ Warning: HTTP redirect returned ${REDIRECT}"
-          fi
-
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: MiniFlow ${{ needs.code-quality.outputs.version }}
-          body: |
-            ## 🚀 MiniFlow Release ${{ needs.code-quality.outputs.version }}
-            
-            ### ✨ Deployed to Production
-            - 🌐 URL: https://miniflow.vidinsight.com.tr/ 
-            - 📦 Version: ${{ needs.code-quality.outputs.version }}
-            - 🔒 SSL: Enabled (Let's Encrypt)
-            - 💾 Database: SQLite
-            - 🎯 Strategy: Blue-Green Deployment
-            - 📝 Commit: ${{ github.sha }}
-            - 👤 Author: ${{ github.actor }}
-            
-            ### 🔄 Deployment Details
-            - Zero downtime deployment
-            - Automatic database backup
-            - Health checks passed
-            - SSL certificate active
-            - User: ubuntu
-          draft: false
-          prerelease: false
+          sleep 5
+          curl -f http://miniflow.vidinsight.com.tr:9000/health
 
   rollback:
-    name: 🔄 Emergency Rollback
+    name: 🔄 Restart Service
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && inputs.rollback
     environment:
       name: production
     
     steps:
-      - name: Execute rollback
+      - name: Restart MiniFlow
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_HOST }}
@@ -533,97 +184,17 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || 22 }}
           script: |
-            set -euo pipefail
+            echo "🔄 Restarting MiniFlow service..."
+            sudo systemctl restart miniflow
             
-            echo "🚨 EMERGENCY ROLLBACK INITIATED"
-            echo "🌐 Domain: https://miniflow.vidinsight.com.tr "
-            echo "👤 User: ubuntu"
-            
-            APP_NAME="miniflow"
-            DEPLOY_ROOT="/opt/miniflow"
-            CURRENT_LINK="${DEPLOY_ROOT}/current"
-            SHARED_DIR="${DEPLOY_ROOT}/shared"
-            DOMAIN="miniflow.vidinsight.com.tr"
-            
-            if [ ! -L "${CURRENT_LINK}" ]; then
-              echo "❌ No active deployment found!"
-              exit 1
-            fi
-            
-            CURRENT_ENV=$(basename "$(readlink -f "${CURRENT_LINK}")")
-            
-            if [ "${CURRENT_ENV}" = "blue" ]; then
-              ROLLBACK_ENV="green"
-              ROLLBACK_PORT=9002
-            else
-              ROLLBACK_ENV="blue"
-              ROLLBACK_PORT=9001
-            fi
-            
-            ROLLBACK_DIR="${DEPLOY_ROOT}/${ROLLBACK_ENV}"
-            
-            if [ ! -d "${ROLLBACK_DIR}" ]; then
-              echo "❌ No previous version found for rollback!"
-              exit 1
-            fi
-            
-            echo "↩️  Rolling back from ${CURRENT_ENV} to ${ROLLBACK_ENV}"
-            
-            # Restore last database backup
-            LATEST_BACKUP=$(ls -t "${SHARED_DIR}/backups"/*.db 2>/dev/null | head -n 1)
-            if [ -n "${LATEST_BACKUP}" ]; then
-              echo "💾 Restoring database backup..."
-              cp "${LATEST_BACKUP}" "${SHARED_DIR}/data/miniflow.db"
-              chmod 600 "${SHARED_DIR}/data/miniflow.db"
-              echo "✅ Database restored from: ${LATEST_BACKUP}"
-            fi
-            
-            # Start rollback service
-            echo "▶️ Starting ${ROLLBACK_ENV} service..."
-            sudo systemctl start ${APP_NAME}-${ROLLBACK_ENV}
-            
-            # Health check
-            for i in {1..30}; do
-              if curl -f http://localhost:${ROLLBACK_PORT}/health > /dev/null 2>&1; then
-                echo "✅ ${ROLLBACK_ENV} is healthy!"
-                break
-              fi
-              if [ $i -eq 30 ]; then
-                echo "❌ Rollback environment failed to start!"
-                sudo systemctl status ${APP_NAME}-${ROLLBACK_ENV}
-                exit 1
+            for i in {1..10}; do
+              if curl -f -s http://localhost:9000/health > /dev/null 2>&1; then
+                echo "✅ Service restarted successfully!"
+                exit 0
               fi
               sleep 3
             done
             
-            # Update Nginx
-            echo "🔄 Switching Nginx to ${ROLLBACK_ENV}..."
-            sudo sed -i "s|localhost:[0-9]*|localhost:${ROLLBACK_PORT}|g" /etc/nginx/sites-available/${APP_NAME}
-            sudo nginx -t && sudo systemctl reload nginx
-            
-            # Final check
-            sleep 3
-            if ! curl -f -k https://localhost/health > /dev/null 2>&1; then
-              echo "❌ HTTPS health check failed after rollback!"
-              exit 1
-            fi
-            
-            # Update symlink
-            ln -sfn "${ROLLBACK_DIR}" "${CURRENT_LINK}"
-            
-            # Stop current environment
-            echo "🛑 Stopping ${CURRENT_ENV}..."
-            sudo systemctl stop ${APP_NAME}-${CURRENT_ENV}
-            
-            echo ""
-            echo "✅ Rollback to ${ROLLBACK_ENV} completed successfully!"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🌐 URL: https://miniflow.vidinsight.com.tr "
-            echo "🎯 Active Environment: ${ROLLBACK_ENV}"
-            echo "🔌 Port: ${ROLLBACK_PORT}"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-
-
-
-
+            echo "❌ Service restart failed!"
+            sudo journalctl -u miniflow -n 20 --no-pager
+            exit 1
