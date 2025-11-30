@@ -93,19 +93,20 @@ jobs:
               
               # Environment dosyası oluştur
               echo "📝 Creating environment file..."
-              cat > .env <<EOF
+              cat > .env <<-EOF
               TEST_KEY=ThisKeyIsForConfigTest
               APP_ENV=dev
               DB_TYPE=sqlite
               JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
               SECRET_KEY=${{ secrets.SECRET_KEY }}
-              MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }} EOF
+              MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}
+              EOF
 
               
               # Config dosyası oluştur
               echo "⚙️ Creating configuration..."
               mkdir -p configurations
-              cat > configurations/dev.ini <<EOF
+              cat > configurations/dev.ini <<-EOF
               [Test]
               value = ThisKeyIsForConfigTest
               
@@ -183,7 +184,8 @@ jobs:
               welcome_template_id=d2945577-5fff-4cb8-bcff-ebe7fbaf713c
               verification_template_id=2d9b707a-3b29-44a1-a0a0-8a8efe552fce
               password_reset_template_id=6c39810f-46c5-4e9d-a32e-8dc5e98d2b95
-              notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399 EOF
+              notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399
+              EOF
               
               # Database setup
               echo "🗄️ Setting up database..."
@@ -191,7 +193,7 @@ jobs:
               
               # Systemd servis dosyası oluştur
               echo "⚙️ Creating systemd service..."
-              sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null << SERVICEEOF
+              sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null <<-SERVICEEOF
               [Unit]
               Description=MiniFlow Application v${VERSION}
               After=network.target
@@ -211,7 +213,8 @@ jobs:
               StandardError=append:${LOG_DIR}/error.log
               
               [Install]
-              WantedBy=multi-user.target SERVICEEOF
+              WantedBy=multi-user.target
+              SERVICEEOF
               
               # Systemd'yı yenile ve servisi etkinleştir
               sudo systemctl daemon-reload
