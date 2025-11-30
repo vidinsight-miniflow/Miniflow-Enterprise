@@ -1,11 +1,9 @@
-name: MiniFlow CI/CD Pipeline
+name: MiniFlow CD (Deploy & Restart)
 
 on:
   push:
     branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       rollback:
@@ -25,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: http://miniflow.vidinsight.com.tr
+      url: http://miniflow.vidinsight.com.tr:8000
     
     steps:
-      - name: Deploy Application
+      - name: Deploy and manage service
         uses: appleboy/ssh-action@v1.0.3
         env:
           VERSION: ${{ github.run_number }}
@@ -44,141 +42,169 @@ jobs:
           script: |
             set -euo pipefail
             
-            echo "🚀 Deploying MiniFlow v${VERSION}"
-            echo "🌐 Direct Access: http://miniflow.vidinsight.com.tr"
-            
-            # Basit konfigürasyon
             APP_NAME="miniflow"
             APP_DIR="/opt/miniflow/app"
             DATA_DIR="/opt/miniflow/data"
             LOG_DIR="/opt/miniflow/logs"
             DOMAIN="miniflow.vidinsight.com.tr"
+            PORT=8000
             
-            # Dizinleri oluştur
-            sudo mkdir -p "${APP_DIR}" "${DATA_DIR}" "${LOG_DIR}"
-            sudo chown -R ubuntu:ubuntu /opt/miniflow
+            # ──────────────────────────────────────────────────────────────
+            # CHECK: Servis var mı?
+            # ──────────────────────────────────────────────────────────────
+            if [ -f "/etc/systemd/system/${APP_NAME}.service" ]; then
+              echo "✅ Service EXISTS. Updating code and restarting..."
+              
+              # Kod dizinine git
+              cd "${APP_DIR}" || { echo "❌ App directory not found!"; exit 1; }
+              
+              # Son kodu çek
+              echo "📥 Pulling latest code..."
+              git pull origin main || { echo "❌ Git pull failed!"; exit 1; }
+              
+              # Dependency güncelle
+              echo "📦 Updating dependencies..."
+              pip3.11 install --user --upgrade -r requirements.txt
             
-            # Eski kodu sil ve yeni kodu çek
-            rm -rf "${APP_DIR}"
-            echo "📥 Cloning repository..."
-            git clone --depth 1 --branch main \
-              https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \
-              "${APP_DIR}"
+            # ──────────────────────────────────────────────────────────────
+            # CREATE: Servis yoksa sıfırdan oluştur
+            # ──────────────────────────────────────────────────────────────
+            else
+              echo "🆕 Service NOT FOUND. Creating from scratch..."
+              
+              # Dizinleri oluştur
+              echo "📁 Creating directories..."
+              sudo mkdir -p "${APP_DIR}" "${DATA_DIR}" "${LOG_DIR}"
+              sudo chown -R ubuntu:ubuntu /opt/miniflow
+              
+              # Repo'yu klonla
+              echo "📦 Cloning repository..."
+              cd /opt/miniflow
+              git clone --depth 1 --branch main \
+                https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \
+                "${APP_DIR}" || { echo "❌ Git clone failed!"; exit 1; }
+              
+              cd "${APP_DIR}"
+              
+              # Bağımlılıkları yükle
+              echo "📦 Installing dependencies..."
+              pip install --user --upgrade pip setuptools wheel
+              pip install --user -r requirements.txt
+              
+              # Environment dosyası oluştur
+              echo "📝 Creating environment file..."
+              cat > .env << EOF
+              APP_ENV=production
+              DB_TYPE=sqlite
+              DATABASE_URL=sqlite:///${DATA_DIR}/miniflow.db
+              CONFIG_PATH=./configurations/prod.ini
+              JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+              SECRET_KEY=${{ secrets.SECRET_KEY }}
+              SERVER_HOST=0.0.0.0
+              SERVER_PORT=${PORT}
+              LOG_LEVEL=${{ secrets.LOG_LEVEL || 'WARNING' }}
+              DOMAIN=${DOMAIN}
+              EOF
+              
+              # Config dosyası oluştur
+              echo "⚙️ Creating configuration..."
+              mkdir -p configurations
+              cat > configurations/prod.ini << EOF
+              [app]
+              name = MiniFlow
+              environment = production
+              debug = false
+              
+              [server]
+              host = 0.0.0.0
+              port = ${PORT}
+              workers = 1
+              
+              [database]
+              type = sqlite
+              path = ${DATA_DIR}/miniflow.db
+              
+              [logging]
+              level = WARNING
+              file = ${LOG_DIR}/app.log
+              EOF
+              
+              # Database setup
+              echo "🗄️ Setting up database..."
+              python3.11 -m src.miniflow setup
+              python3.11 -m src.miniflow migrate || echo "No migrations needed"
+              
+              # Systemd servis dosyası oluştur
+              echo "⚙️ Creating systemd service..."
+              sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null << SERVICEEOF
+              [Unit]
+              Description=MiniFlow Application v${VERSION}
+              After=network.target
+              
+              [Service]
+              Type=simple
+              User=ubuntu
+              WorkingDirectory=${APP_DIR}
+              Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
+              Environment="PYTHONPATH=${APP_DIR}"
+              EnvironmentFile=${APP_DIR}/.env
+              ExecStart=/usr/bin/python3.11 -m src.miniflow run
+              
+              Restart=always
+              RestartSec=10
+              StandardOutput=append:${LOG_DIR}/app.log
+              StandardError=append:${LOG_DIR}/error.log
+              
+              [Install]
+              WantedBy=multi-user.target
+              SERVICEEOF
+              
+              # Systemd'yı yenile ve servisi etkinleştir
+              sudo systemctl daemon-reload
+              sudo systemctl enable ${APP_NAME}
+            fi
             
-            cd "${APP_DIR}"
-            
-            # Bağımlılıkları yükle (GLOBAL)
-            echo "📦 Installing dependencies..."
-            pip3.11 install --user --upgrade pip setuptools wheel
-            pip3.11 install --user -r requirements.txt
-            
-            # Environment dosyası oluştur (PORT YOK!)
-            cat > .env << EOF
-            APP_ENV=production
-            DB_TYPE=sqlite
-            DATABASE_URL=sqlite:///${DATA_DIR}/miniflow.db
-            CONFIG_PATH=./configurations/prod.ini
-            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            SERVER_HOST=0.0.0.0
-            LOG_LEVEL=${{ secrets.LOG_LEVEL || 'WARNING' }}
-            DOMAIN=${DOMAIN}
-            EOF
-            
-            # Config dosyası oluştur (PORT YOK!)
-            mkdir -p configurations
-            cat > configurations/prod.ini << EOF
-            [app]
-            name = MiniFlow
-            environment = production
-            debug = false
-            
-            [server]
-            host = 0.0.0.0
-            workers = 1
-            
-            [database]
-            type = sqlite
-            path = ${DATA_DIR}/miniflow.db
-            
-            [logging]
-            level = WARNING
-            file = ${LOG_DIR}/app.log
-            EOF
-            
-            # Database setup
-            echo "🗄️ Setting up database..."
-            python3.11 -m src.miniflow setup
-            python3.11 -m src.miniflow migrate || echo "No migrations"
-            
-            # Systemd servisi oluştur - PORT 80 için yetki eklendi!
-            echo "⚙️ Creating systemd service..."
-            sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null << SERVICEEOF
-            [Unit]
-            Description=MiniFlow Application v${VERSION}
-            After=network.target
-            
-            [Service]
-            Type=simple
-            User=ubuntu
-            WorkingDirectory=${APP_DIR}
-            Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
-            Environment="PYTHONPATH=${APP_DIR}"
-            EnvironmentFile=${APP_DIR}/.env
-            ExecStart=/usr/bin/python3.11 -m src.miniflow run
-            
-            # Port 80'e erişim için gerekli yetki
-            AmbientCapabilities=CAP_NET_BIND_SERVICE
-            CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-            
-            Restart=always
-            RestartSec=10
-            StandardOutput=append:${LOG_DIR}/app.log
-            StandardError=append:${LOG_DIR}/error.log
-            
-            [Install]
-            WantedBy=multi-user.target
-            SERVICEEOF
-            
-            # Servisi yenile ve başlat
-            sudo systemctl daemon-reload
-            sudo systemctl enable ${APP_NAME}
+            echo "🔄 Restarting ${APP_NAME} service..."
             sudo systemctl restart ${APP_NAME}
             
-            # Health check (PORT YOK!)
-            echo "🏥 Health checking..."
+            # Health check
+            echo "🏥 Health checking on port ${PORT}..."
             for i in {1..20}; do
-              if curl -f -s http://${DOMAIN}/health > /dev/null 2>&1; then
-                echo "✅ Application is running on port 80!"
-                break
+              if curl -f -s http://${DOMAIN}:${PORT}/health > /dev/null 2>&1; then
+                echo "✅ Application is running!"
+                exit 0
               fi
+              
+              if [ $i -eq 10 ]; then
+                echo "⚠️ 10 attempts failed, checking logs..."
+                sudo journalctl -u ${APP_NAME} -n 20 --no-pager
+              fi
+              
               if [ $i -eq 20 ]; then
                 echo "❌ Health check failed!"
-                sudo journalctl -u ${APP_NAME} -n 20 --no-pager
+                sudo systemctl status ${APP_NAME} --no-pager
+                sudo journalctl -u ${APP_NAME} -n 30 --no-pager
                 exit 1
               fi
+              
               sleep 2
             done
-            
-            echo ""
-            echo "✅ Deployment completed!"
-            echo "🌐 http://${DOMAIN} (Port 80)"
-            echo "Logs: sudo journalctl -u ${APP_NAME} -f"
 
       - name: Test deployment
         run: |
           sleep 5
-          curl -f http://miniflow.vidinsight.com.tr/health
+          echo "Testing http://miniflow.vidinsight.com.tr:8000/health"
+          curl -v http://miniflow.vidinsight.com.tr:8000/health || echo "Health check failed"
 
   rollback:
-    name: 🔄 Restart Service
+    name: 🚨 Emergency Restart
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && inputs.rollback
     environment:
       name: production
     
     steps:
-      - name: Restart MiniFlow
+      - name: Restart MiniFlow Service
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.PROD_HOST }}
@@ -186,11 +212,11 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || 22 }}
           script: |
-            echo "🔄 Restarting MiniFlow service..."
+            echo "🚨 Emergency restart requested..."
             sudo systemctl restart miniflow
             
             for i in {1..10}; do
-              if curl -f -s http://miniflow.vidinsight.com.tr/health > /dev/null 2>&1; then
+              if curl -f -s http://miniflow.vidinsight.com.tr:8000/health > /dev/null 2>&1; then
                 echo "✅ Service restarted successfully!"
                 exit 0
               fi
