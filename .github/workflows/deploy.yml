@@ -41,165 +41,193 @@ jobs:
           command_timeout: 30m
           script: |
             set -euo pipefail
-
+            
             APP_NAME="miniflow"
             APP_DIR="/opt/miniflow/app"
             DATA_DIR="/opt/miniflow/data"
             LOG_DIR="/opt/miniflow/logs"
             DOMAIN="miniflow.vidinsight.com.tr"
             PORT=8000
-
+            
+            # ──────────────────────────────────────────────────────────────
+            # CHECK: Servis var mı?
+            # ──────────────────────────────────────────────────────────────
             if [ -f "/etc/systemd/system/${APP_NAME}.service" ]; then
-              echo "Service exists, updating..."
-              cd "${APP_DIR}"
-              git pull origin main
+              echo "✅ Service EXISTS. Updating code and restarting..."
+              
+              # Kod dizinine git
+              cd "${APP_DIR}" || { echo "❌ App directory not found!"; exit 1; }
+              
+              # Son kodu çek
+              echo "📥 Pulling latest code..."
+              git pull origin main || { echo "❌ Git pull failed!"; exit 1; }
+              
+              # Dependency güncelle
+              echo "📦 Updating dependencies..."
               pip3 install --user --upgrade -r requirements.txt
+            
+            # ──────────────────────────────────────────────────────────────
+            # CREATE: Servis yoksa sıfırdan oluştur
+            # ──────────────────────────────────────────────────────────────
             else
-              echo "Service not found, creating fresh setup..."
-
+              echo "🆕 Service NOT FOUND. Creating from scratch..."
+              
+              # Dizinleri oluştur
+              echo "📁 Creating directories..."
               sudo mkdir -p "${APP_DIR}" "${DATA_DIR}" "${LOG_DIR}"
               sudo chown -R ubuntu:ubuntu /opt/miniflow
-
+              
+              # Repo'yu klonla
+              echo "📦 Cloning repository..."
               cd /opt/miniflow
               git clone --depth 1 --branch main \
                 https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git \
-                "${APP_DIR}"
-
+                "${APP_DIR}" || { echo "❌ Git clone failed!"; exit 1; }
+              
               cd "${APP_DIR}"
-
+              
+              # Bağımlılıkları yükle
+              echo "📦 Installing dependencies..."
               pip install --user --upgrade pip setuptools wheel
               pip install --user -r requirements.txt
+              
+              # Environment dosyası oluştur
+              echo "📝 Creating environment file..."
+              cat > .env <<EOF
+              TEST_KEY=ThisKeyIsForConfigTest
+              APP_ENV=dev
+              DB_TYPE=sqlite
+              JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+              SECRET_KEY=${{ secrets.SECRET_KEY }}
+              MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}
+              EOF
 
-              echo "Creating .env file..."
-cat > .env <<EOF
-TEST_KEY=ThisKeyIsForConfigTest
-APP_ENV=dev
-DB_TYPE=sqlite
-JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
-SECRET_KEY=${{ secrets.SECRET_KEY }}
-MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}
-EOF
-
-              echo "Creating configurations/dev.ini..."
-mkdir -p configurations
-cat > configurations/dev.ini <<EOF
-[Test]
-value = ThisKeyIsForConfigTest
-
-[Database]
-db_type = sqlite
-db_path = ./miniflow.db
-db_name = miniflow
-db_host = localhost
-db_port = 5432
-db_user = postgres
-db_password =
-seed_data_path = ./seeds/
-
-[FILE OPERATIONS]
-max_file_size_mb = 100
-allowed_extensions = .pdf,.doc,.docx,.txt,.rtf,.odt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.mp4,.avi,.mov,.wmv,.flv,.mkv,.webm,.mp3,.wav,.ogg,.m4a,.flac,.zip,.tar,.gz,.rar,.7z,.json,.xml,.yaml,.yml
-blocked_extensions = .exe,.bat,.cmd,.com,.pif,.scr,.vbs,.js,.jar,.msi,.app,.deb,.rpm,.dmg,.pkg,.sh,.bash,.zsh,.fish,.ps1,.psm1,.psd1,.py,.rb,.pl,.php,.cgi,.asp,.aspx,.jsp,.html,.htm,.css,.sys,.dll,.so,.dylib,.reg,.inf,.msp,.gadget,.lnk,.apk
-allowed_mime_types = application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation,image/jpeg,image/png,image/gif,image/bmp,image/webp,image/svg+xml,video/mp4,video/x-msvideo,video/quicktime,video/x-ms-wmv,video/x-flv,video/x-matroska,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac,application/zip,application/x-tar,application/gzip,application/x-rar-compressed,application/x-7z-compressed,application/json,application/xml,text/yaml,text/yml
-
-[CUSTOM SCRIPTS]
-allowed_script_extensions = .py
-allowed_script_mime_types = text/x-python
-max_script_size_mb = 1
-script_validation_enabled = true
-
-[GLOBAL SCRIPTS]
-allowed_script_extensions = .py
-allowed_script_mime_types = text/x-python
-max_script_size_mb = 5
-
-[AUTH]
-max_failed_attempts = 5
-lockout_duration_minutes = 15
-rate_limit_window_minutes = 5
-max_active_sessions = 5
-max_password_history_count = 3
-
-[JWT Settings]
-jwt_access_token_expire_minutes = 60
-jwt_refresh_token_expire_days = 7
-access_token_type = access
-refresh_token_type = refresh
-
-[Server]
-title = Miniflow Enterprise API
-description = Workflow automation and management API
-version = 1.0.0
-allowed_origins = "https://miniflow.vidinsight.com.tr"
-host = 0.0.0.0
-port = 8000
-reload = True
-workers = 1
-
-[Rate Limitting]
-ip_minute_limit = 1000
-ip_hour_limit = 10000
-ip_day_limit = 100000
-user_minute_limit = 600
-user_hour_limit = 6000
-user_day_limit = 60000
-
-[Redis]
-host = localhost
-port = 6379
-db = 0
-password =
-max_connections = 50
-socket_timeout = 5
-socket_connect_timeout = 5
-decode_responses = True
-
-[Mailtrap]
-sender_email=enes@vidinsight.com.tr
-sender_name=vidinsight
-welcome_template_id=d2945577-5fff-4cb8-bcff-ebe7fbaf713c
-verification_template_id=2d9b707a-3b29-44a1-a0a0-8a8efe552fce
-password_reset_template_id=6c39810f-46c5-4e9d-a32e-8dc5e98d2b95
-notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399
-EOF
-
-              echo "Setting up database..."
+              
+              # Config dosyası oluştur
+              echo "⚙️ Creating configuration..."
+              mkdir -p configurations
+              cat > configurations/dev.ini <<EOF
+              [Test]
+              value = ThisKeyIsForConfigTest
+              
+              [Database]
+              db_type = sqlite
+              db_path = ./miniflow.db
+              db_name = miniflow
+              db_host = localhost
+              db_port = 5432
+              db_user = postgres
+              db_password =
+              seed_data_path = ./seeds/
+              
+              [FILE OPERATIONS]
+              max_file_size_mb = 100
+              allowed_extensions = .pdf,.doc,.docx,.txt,.rtf,.odt,.xls,.xlsx,.csv,.ods,.ppt,.pptx,.odp,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.mp4,.avi,.mov,.wmv,.flv,.mkv,.webm,.mp3,.wav,.ogg,.m4a,.flac,.zip,.tar,.gz,.rar,.7z,.json,.xml,.yaml,.yml
+              blocked_extensions = .exe,.bat,.cmd,.com,.pif,.scr,.vbs,.js,.jar,.msi,.app,.deb,.rpm,.dmg,.pkg,.sh,.bash,.zsh,.fish,.ps1,.psm1,.psd1,.py,.rb,.pl,.php,.cgi,.asp,.aspx,.jsp,.html,.htm,.css,.sys,.dll,.so,.dylib,.reg,.inf,.msp,.gadget,.lnk,.apk
+              allowed_mime_types = application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/vnd.oasis.opendocument.spreadsheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.oasis.opendocument.presentation,image/jpeg,image/png,image/gif,image/bmp,image/webp,image/svg+xml,video/mp4,video/x-msvideo,video/quicktime,video/x-ms-wmv,video/x-flv,video/x-matroska,video/webm,audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/flac,application/zip,application/x-tar,application/gzip,application/x-rar-compressed,application/x-7z-compressed,application/json,application/xml,text/yaml,text/yml
+              
+              [CUSTOM SCRIPTS]
+              allowed_script_extensions = .py
+              allowed_script_mime_types = text/x-python
+              max_script_size_mb = 1
+              script_validation_enabled = true
+              
+              [GLOBAL SCRIPTS]
+              allowed_script_extensions = .py
+              allowed_script_mime_types = text/x-python
+              max_script_size_mb = 5
+              
+              [AUTH]
+              max_failed_attempts = 5
+              lockout_duration_minutes = 15
+              rate_limit_window_minutes = 5
+              max_active_sessions = 5
+              max_password_history_count = 3
+              
+              [JWT Settings]
+              jwt_access_token_expire_minutes = 60
+              jwt_refresh_token_expire_days = 7
+              access_token_type = access
+              refresh_token_type = refresh
+              
+              [Server]
+              title = Miniflow Enterprise API
+              description = Workflow automation and management API
+              version = 1.0.0
+              allowed_origins = "https://miniflow.vidinsight.com.tr"
+              host = 0.0.0.0
+              port = 8000
+              reload = True
+              workers = 1
+              
+              [Rate Limitting]
+              ip_minute_limit = 1000
+              ip_hour_limit = 10000
+              ip_day_limit = 100000
+              user_minute_limit = 600
+              user_hour_limit = 6000
+              user_day_limit = 60000
+              
+              [Redis]
+              host = localhost
+              port = 6379
+              db = 0
+              password =
+              max_connections = 50
+              socket_timeout = 5
+              socket_connect_timeout = 5
+              decode_responses = True
+              
+              [Mailtrap]
+              sender_email=enes@vidinsight.com.tr
+              sender_name=vidinsight
+              welcome_template_id=d2945577-5fff-4cb8-bcff-ebe7fbaf713c
+              verification_template_id=2d9b707a-3b29-44a1-a0a0-8a8efe552fce
+              password_reset_template_id=6c39810f-46c5-4e9d-a32e-8dc5e98d2b95
+              notification_template_id=d9161ce8-3aec-4d0e-b2ee-3ed14b0f9399
+              EOF
+              
+              # Database setup
+              echo "🗄️ Setting up database..."
               python3 -m src.miniflow setup
-
-              echo "Creating systemd service..."
-sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null <<EOF
-[Unit]
-Description=MiniFlow Application v${VERSION}
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=${APP_DIR}
-Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
-Environment="PYTHONPATH=${APP_DIR}"
-EnvironmentFile=${APP_DIR}/.env
-ExecStart=/usr/bin/python3 -m src.miniflow run
-
-Restart=always
-RestartSec=10
-StandardOutput=append:${LOG_DIR}/app.log
-StandardError=append:${LOG_DIR}/error.log
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
+              
+              # Systemd servis dosyası oluştur
+              echo "⚙️ Creating systemd service..."
+              sudo tee /etc/systemd/system/${APP_NAME}.service > /dev/null << SERVICEEOF
+              [Unit]
+              Description=MiniFlow Application v${VERSION}
+              After=network.target
+              
+              [Service]
+              Type=simple
+              User=ubuntu
+              WorkingDirectory=${APP_DIR}
+              Environment="PATH=/home/ubuntu/.local/bin:/usr/bin"
+              Environment="PYTHONPATH=${APP_DIR}"
+              EnvironmentFile=${APP_DIR}/.env
+              ExecStart=/usr/bin/python3 -m src.miniflow run
+              
+              Restart=always
+              RestartSec=10
+              StandardOutput=append:${LOG_DIR}/app.log
+              StandardError=append:${LOG_DIR}/error.log
+              
+              [Install]
+              WantedBy=multi-user.target
+              SERVICEEOF
+              
+              # Systemd'yı yenile ve servisi etkinleştir
               sudo systemctl daemon-reload
               sudo systemctl enable ${APP_NAME}
             fi
-
-            echo "Restarting service..."
+            
+            echo "🔄 Restarting ${APP_NAME} service..."
             sudo systemctl restart ${APP_NAME}
-
-            echo "Service logs:"
+            
+            # Health check
+            echo "🏥 Health checking on port ${PORT}..."
             sudo journalctl -u ${APP_NAME} -n 20 --no-pager
-
+            
 
   rollback:
     name: 🚨 Emergency Restart
@@ -217,7 +245,7 @@ EOF
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || 22 }}
           script: |
-            echo "Emergency restart..."
+            echo "🚨 Emergency restart requested..."
             sudo systemctl restart miniflow
             sudo journalctl -u miniflow -n 20 --no-pager
             exit 1
