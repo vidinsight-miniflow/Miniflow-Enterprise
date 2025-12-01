@@ -34,7 +34,8 @@ class AuthSessionRepository(BaseRepository[AuthSession]):
         query = (
             select(AuthSession)
             .where(AuthSession.user_id == user_id, AuthSession.is_revoked == False)
-            .order_by(AuthSession.created_at.asc())
+            .order_by(AuthSession.created_at.asc(), AuthSession.id.asc())
+            .limit(1)
         )
         query = self._apply_soft_delete_filter(query, include_deleted=False)
         oldest_session = session.execute(query).scalar_one_or_none()

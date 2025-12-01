@@ -26,8 +26,18 @@ from ..dependencies import get_workspace_service, get_workspace_member_service
 
 
 async def extract_workspace_id(workspace_id: str = Path(..., alias="workspace_id")) -> str:
+    # Frontend'den "undefined" string'i geldiğinde daha açıklayıcı hata mesajı
+    if workspace_id == "undefined" or workspace_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Workspace ID is missing or undefined. Please ensure the workspace is selected before making this request."
+        )
+    
     if not re.match(r'^WSP-[A-F0-9]{16}$', workspace_id):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid workspace ID format")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid workspace ID format. Expected format: WSP-[16 hex characters], got: {workspace_id}"
+        )
     return workspace_id
 
 
