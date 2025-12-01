@@ -70,6 +70,10 @@ jobs:
               echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
               echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
               echo "MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}" >> .env
+
+              # Database setup
+              echo "🗄️ Setting up database..."
+              python3 -m src.miniflow setup
               
               # Dependency güncelle
               echo "📦 Updating dependencies..."
