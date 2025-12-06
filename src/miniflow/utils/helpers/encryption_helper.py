@@ -1,10 +1,11 @@
 import bcrypt
 import hashlib
+import base64
 from typing import Optional
 from cryptography.fernet import Fernet
 
 from ..handlers import EnvironmentHandler
-from src.miniflow.core.exceptions import InvalidInputError, InternalError
+from miniflow.core.exceptions import InvalidInputError, InternalError
 
 
 # Cache variables for lazy loading
@@ -19,12 +20,38 @@ def _get_encryption_key() -> bytes:
         key = EnvironmentHandler.get("ENCRYPTION_KEY")
 
         if key:
-            _encryption_key = key.encode() if isinstance(key, str) else key
+            try:
+                # Eğer hex string ise (64 karakter hex), bytes'a çevir ve base64 encode et
+                if isinstance(key, str) and len(key) == 64:
+                    try:
+                        # Hex string kontrolü
+                        key_bytes = bytes.fromhex(key)
+                        if len(key_bytes) == 32:
+                            # Base64 encode et (Fernet key formatı)
+                            _encryption_key = base64.urlsafe_b64encode(key_bytes)
+                        else:
+                            raise ValueError("ENCRYPTION_KEY hex string must decode to 32 bytes")
+                    except ValueError:
+                        # Hex değilse, base64 encoded key olarak kabul et
+                        _encryption_key = key.encode() if isinstance(key, str) else key
+                else:
+                    # Base64 encoded key olarak kabul et
+                    _encryption_key = key.encode() if isinstance(key, str) else key
+                
+                # Fernet key formatını doğrula
+                Fernet(_encryption_key)
+            except Exception as e:
+                print(f"\n[ERROR] ENCRYPTION_KEY formatı geçersiz: {str(e)}")
+                print("[ERROR] ENCRYPTION_KEY base64 encoded 32-byte key olmalı veya 64 karakter hex string olmalı.")
+                raise InternalError(
+                    component_name="encryption_helper",
+                    message=f"Invalid ENCRYPTION_KEY format: {str(e)}"
+                )
         else:
             print("\n[WARNING] ENCRYPTION_KEY ayarlanmamış. Geçici anahtar üretiliyor.")
             print("[WARNING] Production için ENCRYPTION_KEY ortam değişkenini ayarlayın.")
             new_key = Fernet.generate_key()
-            print(f"[WARNING] Oluşturulan yeni encryption key {new_key}")
+            print(f"[WARNING] Oluşturulan yeni encryption key {new_key.decode()}")
             _encryption_key = new_key
     
     return _encryption_key
@@ -46,8 +73,11 @@ def encrypt_data(plain_text: str) -> str:
     try:
         encrypted_bytes = _get_cipher().encrypt(plain_text.encode('utf-8'))
         return encrypted_bytes.decode('utf-8')
-    except Exception:
-        raise InternalError(component_name="encryption_helper")
+    except Exception as e:
+        raise InternalError(
+            component_name="encryption_helper",
+            message=f"Encryption failed: {str(e)}"
+        )
     
 def decrypt_data(encrypted_text: str) -> str:
     if not encrypted_text:
@@ -56,8 +86,11 @@ def decrypt_data(encrypted_text: str) -> str:
     try:
         decrypted_bytes = _get_cipher().decrypt(encrypted_text.encode('utf-8'))
         return decrypted_bytes.decode('utf-8')
-    except Exception:
-        raise InternalError(component_name="encryption_helper")
+    except Exception as e:
+        raise InternalError(
+            component_name="encryption_helper",
+            message=f"Decryption failed: {str(e)}"
+        )
     
 def hash_password(password: str, rounds: int = 12) -> str:
     if not password:

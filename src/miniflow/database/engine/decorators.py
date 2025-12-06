@@ -4,7 +4,7 @@ import inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, DBAPIError
 
-from src.miniflow.core.exceptions import DatabaseQueryError
+from miniflow.core.exceptions import DatabaseQueryError
 from .manager import DatabaseManager, get_database_manager
 
 

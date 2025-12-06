@@ -1,7 +1,7 @@
 from pathlib import Path
 from configparser import ConfigParser
 from .environment_handler import EnvironmentHandler
-from src.miniflow.core.exceptions import ResourceNotFoundError, InternalError
+from miniflow.core.exceptions import ResourceNotFoundError, InternalError
 
 class ConfigurationHandler:
     """Configuration handler for loading and managing application configuration files."""
@@ -141,9 +141,23 @@ class ConfigurationHandler:
     @classmethod
     def get_list(cls, section: str, key: str, separator: str = ",", fallback=None):
         """Get a list value from configuration by splitting on separator."""
-        value = cls._parser.get(section, key, fallback=fallback)
+        try:
+            value = cls._parser.get(section, key, fallback=fallback)
+        except Exception:
+            return fallback if fallback is not None else []
+        
         if value is None:
             return fallback if fallback is not None else []
+        
+        # If value is already a list, return it directly
+        if isinstance(value, list):
+            return value
+        
+        # If value is not a string, try to convert or return fallback
+        if not isinstance(value, str):
+            return fallback if fallback is not None else []
+        
+        # Split string by separator
         return [item.strip() for item in value.split(separator) if item.strip()]
 
     @classmethod

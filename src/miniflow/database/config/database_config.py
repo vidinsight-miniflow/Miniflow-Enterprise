@@ -6,7 +6,7 @@ from sqlalchemy.engine import URL
 # -- Imports from local modules -- #
 from .database_type import DatabaseType
 from .engine_config import EngineConfig
-from src.miniflow.core.exceptions import InvalidInputError, DatabaseConfigurationError
+from miniflow.core.exceptions import InvalidInputError, DatabaseConfigurationError
 
 
 @dataclass

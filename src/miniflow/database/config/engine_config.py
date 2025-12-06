@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
-from src.miniflow.core.exceptions import InvalidInputError
+from miniflow.core.exceptions import InvalidInputError
 
 
 @dataclass

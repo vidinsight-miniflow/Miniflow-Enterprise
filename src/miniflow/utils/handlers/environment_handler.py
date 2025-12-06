@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from src.miniflow.core.exceptions import ResourceNotFoundError, InternalError
+from miniflow.core.exceptions import ResourceNotFoundError, InternalError
 
 class EnvironmentHandler:
     """Environment handler for loading and managing environment variables from .env files."""

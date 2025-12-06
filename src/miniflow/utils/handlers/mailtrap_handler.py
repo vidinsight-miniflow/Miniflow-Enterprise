@@ -1,8 +1,8 @@
 import mailtrap as mt
 from typing import List, Optional, Dict, Any
 
-from src.miniflow.utils.handlers import EnvironmentHandler, ConfigurationHandler
-from src.miniflow.core.exceptions import (
+from miniflow.utils.handlers import EnvironmentHandler, ConfigurationHandler
+from miniflow.core.exceptions import (
     InternalError,
     InvalidInputError,
     ExternalServiceConnectionError,

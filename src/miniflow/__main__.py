@@ -34,7 +34,7 @@ from seeds.global_script_seeds import GLOBAL_SCRIPT_SEEDS
 # ============================================================================
 # CORE
 # ============================================================================
-from src.miniflow.core.exceptions import (
+from miniflow.core.exceptions import (
     InternalError,
     InvalidInputError,
     ResourceNotFoundError,
@@ -43,7 +43,7 @@ from src.miniflow.core.exceptions import (
 # ============================================================================
 # DATABASE
 # ============================================================================
-from src.miniflow.database import (
+from miniflow.database import (
     DatabaseManager,
     get_mysql_config,
     get_postgresql_config,
@@ -53,18 +53,18 @@ from src.miniflow.database import (
 # ============================================================================
 # SERVICES
 # ============================================================================
-from src.miniflow.services.info_services.agreement_service import AgreementService
-from src.miniflow.services.info_services.user_roles_service import UserRolesService
-from src.miniflow.services.info_services.workspace_plans_service import (
-    WorkspacePlansService,
+from miniflow.services import (
+    AgreementService,
+    UserRoleService,
+    WorkspacePlanService,
+    GlobalScriptService,
 )
-from src.miniflow.services.script_services.global_script_service import GlobalScriptService
 
 # ============================================================================
 # UTILS
 # ============================================================================
-from src.miniflow.utils import ConfigurationHandler, EnvironmentHandler, RedisClient
-from src.miniflow.utils.helpers.file_helper import create_resources_folder
+from miniflow.utils import ConfigurationHandler, EnvironmentHandler, RedisClient
+from miniflow.utils.helpers.file_helper import create_resources_folder
 
 # ============================================================================
 # EARLY EXIT FOR HELP
@@ -94,8 +94,8 @@ class MiniFlow:
         self.is_running = False
 
         # Lazy initialization için seed services
-        self._user_role_service: Optional[UserRolesService] = None
-        self._workspace_plan_service: Optional[WorkspacePlansService] = None
+        self._user_role_service: Optional[UserRoleService] = None
+        self._workspace_plan_service: Optional[WorkspacePlanService] = None
         self._agreement_service: Optional[AgreementService] = None
         self._global_script_service: Optional[GlobalScriptService] = None
 
@@ -209,10 +209,10 @@ class MiniFlow:
 
         self._initialize_seed_services()
 
-        role_stats = self._user_role_service.seed_role(roles_data=USER_ROLES_SEED)
-        plan_stats = self._workspace_plan_service.seed_plan(plans_data=WORKSPACE_PLANS_SEED)
-        agreement_stats = self._agreement_service.seed_agreement(agreements_data=AGREEMENT_SEEDS)
-        script_stats = self._global_script_service.seed_script(scripts_data=GLOBAL_SCRIPT_SEEDS)
+        role_stats = UserRoleService.seed_default_user_roles(roles_data=USER_ROLES_SEED)
+        plan_stats = WorkspacePlanService.seed_default_workspace_plans(plans_data=WORKSPACE_PLANS_SEED)
+        agreement_stats = AgreementService.seed_default_agreements(agreements_data=AGREEMENT_SEEDS)
+        script_stats = GlobalScriptService.seed_scripts(scripts_data=GLOBAL_SCRIPT_SEEDS)
 
         print("[OK]")
         print(f"      • Roles: {role_stats['created']} created, {role_stats['skipped']} skipped")
@@ -233,7 +233,7 @@ class MiniFlow:
 
         # Mail test (opsiyonel)
         try:
-            from src.miniflow.utils.handlers.mailtrap_handler import MailTrapClient
+            from miniflow.utils.handlers.mailtrap_handler import MailTrapClient
             MailTrapClient.initialize()
             print("• Mail [OK]")
         except:
@@ -377,7 +377,7 @@ class MiniFlow:
 
     def _start_engine(self, state: dict):
         """Engine başlat"""
-        from src.miniflow.engine.manager.engine_manager import EngineManager
+        from miniflow.engine.manager.engine_manager import EngineManager
         engine = EngineManager()
         if not engine.started:
             engine.start()
@@ -386,13 +386,13 @@ class MiniFlow:
 
     def _start_output_handler(self, state: dict):
         """Output Handler başlat"""
-        from src.miniflow.handlers.execution_output_handler import ExecutionOutputHandler
+        from miniflow.handlers.execution_output_handler import ExecutionOutputHandler
         ExecutionOutputHandler.start(state['engine_manager'])
         return ExecutionOutputHandler
 
     def _start_input_handler(self, state: dict):
         """Input Handler başlat"""
-        from src.miniflow.handlers.execution_input_handler import ExecutionInputHandler
+        from miniflow.handlers.execution_input_handler import ExecutionInputHandler
         ExecutionInputHandler.start(state['engine_manager'])
         return ExecutionInputHandler
 
@@ -428,8 +428,7 @@ class MiniFlow:
     def _configure_middleware(self, app):
         """Middleware yapılandırması"""
         from fastapi.middleware.cors import CORSMiddleware
-        from src.miniflow.server.middleware.request_id_handler import RequestIdMiddleware
-        from src.miniflow.server.middleware.rate_limit_handler import RateLimitMiddleware
+        from miniflow.server.middleware import RequestContextMiddleware, IPRateLimitMiddleware
 
         # CORS
         origins = self._config.get_list("Server", "allowed_origins", "*")
@@ -441,29 +440,21 @@ class MiniFlow:
             allow_headers=["*"],
         )
 
-        # Request ID & Rate Limit
-        app.add_middleware(RequestIdMiddleware)
-        app.add_middleware(RateLimitMiddleware)
+        # Request Context & Rate Limit
+        # Note: Order matters - RequestContextMiddleware should be added first
+        # so it runs last (middleware are executed in reverse order)
+        app.add_middleware(IPRateLimitMiddleware)
+        app.add_middleware(RequestContextMiddleware)
 
     def _configure_exception_handlers(self, app):
         """Exception handler yapılandırması"""
         warnings.filterwarnings("ignore", category=DeprecationWarning,
                               message=".*HTTP_422_UNPROCESSABLE_ENTITY.*")
 
-        from fastapi.exceptions import RequestValidationError
-        from starlette.exceptions import HTTPException as StarletteHTTPException
-        from src.miniflow.core.exceptions import AppException
-        from src.miniflow.server.middleware.exception_handler import (
-            app_exception_handler,
-            validation_exception_handler,
-            http_exception_handler,
-            generic_exception_handler,
-        )
-
-        app.add_exception_handler(AppException, app_exception_handler)
-        app.add_exception_handler(RequestValidationError, validation_exception_handler)
-        app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-        app.add_exception_handler(Exception, generic_exception_handler)
+        from miniflow.server.middleware.exception_handler import register_exception_handlers
+        
+        # Register all exception handlers at once
+        register_exception_handlers(app)
 
     def _configure_routes(self, app):
         """Route yapılandırması"""
@@ -486,24 +477,9 @@ class MiniFlow:
             }
 
         # API routers
-        from src.miniflow.server.routes import (
-            auth_routes, user_routes, agreement_routes, workspace_plans_routes,
-            workspace_routes, workspace_member_routes, workspace_invitation_routes,
-            api_key_routes, variable_routes, database_routes, file_routes,
-            credential_routes, global_script_routes, custom_script_routes,
-            workflow_routes, trigger_routes, node_routes, edge_routes,
-            execution_routes
-        )
+        from miniflow.server.routes.frontend import router as frontend_router
 
-        for route in [
-            auth_routes, user_routes, agreement_routes, workspace_plans_routes,
-            workspace_routes, workspace_member_routes, workspace_invitation_routes,
-            api_key_routes, variable_routes, database_routes, file_routes,
-            credential_routes, global_script_routes, custom_script_routes,
-            workflow_routes, trigger_routes, node_routes, edge_routes,
-            execution_routes
-        ]:
-            app.include_router(route.router)
+        app.include_router(frontend_router)
 
     # ========================================================================
     # HELPERS
@@ -566,8 +542,8 @@ class MiniFlow:
 
     def _initialize_seed_services(self):
         """Seed service'leri başlat"""
-        self._user_role_service = self._user_role_service or UserRolesService()
-        self._workspace_plan_service = self._workspace_plan_service or WorkspacePlansService()
+        self._user_role_service = self._user_role_service or UserRoleService()
+        self._workspace_plan_service = self._workspace_plan_service or WorkspacePlanService()
         self._agreement_service = self._agreement_service or AgreementService()
         self._global_script_service = self._global_script_service or GlobalScriptService()
 

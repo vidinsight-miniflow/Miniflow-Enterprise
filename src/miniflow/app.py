@@ -7,7 +7,7 @@ Uvicorn reload requires an import string (e.g., 'src.miniflow.app:app') instead 
 Note: This module is only used when reload=True. When reload=False, the app object
 is passed directly to uvicorn.run() in __main__.py
 """
-from src.miniflow.__main__ import MiniFlow
+from .__main__ import MiniFlow
 
 # Create MiniFlow instance and app
 # This will be re-executed on each reload, which is expected behavior

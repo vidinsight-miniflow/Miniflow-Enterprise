@@ -5,7 +5,7 @@ from .engine_config_presets import DB_ENGINE_CONFIGS
 from .database_type import DatabaseType
 from .database_config import DatabaseConfig
 from .engine_config import EngineConfig
-from src.miniflow.core.exceptions import DatabaseConfigurationError
+from miniflow.core.exceptions import DatabaseConfigurationError
 
 
 def get_database_config(

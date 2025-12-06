@@ -3,9 +3,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, List, Optional
 
-from src.miniflow.utils import ConfigurationHandler
-from src.miniflow.services.internal_services.scheduler_service import SchedulerForInputHandler
-from src.miniflow.core.logger import get_logger
+from ..utils import ConfigurationHandler
+from ..services import SchedulerForInputHandler
+from ..core.logger import get_logger
 
 
 logger = get_logger(__name__)

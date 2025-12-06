@@ -1,5 +1,5 @@
 from ..engine import ProcessController, QueueController
-from src.miniflow.core.logger import get_logger
+from miniflow.core.logger import get_logger
 from ..queue_module import BaseQueue
 import json
 import atexit

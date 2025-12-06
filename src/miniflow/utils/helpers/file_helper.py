@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, Tuple, Set, Dict, Any, BinaryIO, TextIO, Union
 
-from src.miniflow.core.exceptions import ResourceNotFoundError, InvalidInputError
+from miniflow.core.exceptions import ResourceNotFoundError, InvalidInputError
 from ..handlers import ConfigurationHandler
 
 

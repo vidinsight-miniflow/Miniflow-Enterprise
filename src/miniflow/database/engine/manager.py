@@ -4,7 +4,7 @@ from typing import Optional
 
 from ..config import DatabaseConfig
 from .engine import DatabaseEngine
-from ..models import Base
+from miniflow.models import Base
 
 
 class DatabaseManager:

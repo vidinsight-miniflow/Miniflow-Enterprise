@@ -4,7 +4,7 @@ from typing import Optional, Any
 import redis
 from redis.connection import ConnectionPool
 
-from src.miniflow.core.exceptions import InternalError
+from miniflow.core.exceptions import InternalError
 from .configuration_handler import ConfigurationHandler
 
 

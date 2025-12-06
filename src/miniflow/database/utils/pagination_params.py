@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from math import ceil
 
-from src.miniflow.core.exceptions import InvalidInputError
+from miniflow.core.exceptions import InvalidInputError
 
 
 T = TypeVar('T')

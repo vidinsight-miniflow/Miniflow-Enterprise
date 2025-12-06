@@ -3,9 +3,9 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, List, Optional
 
-from src.miniflow.utils.handlers.configuration_handler import ConfigurationHandler
-from src.miniflow.services.internal_services.scheduler_service import SchedulerForOutputHandler
-from src.miniflow.core.exceptions import (
+from ..utils.handlers.configuration_handler import ConfigurationHandler
+from ..services import SchedulerForOutputHandler
+from ..core.exceptions import (
     HandlerConfigurationError,
     ResultProcessingError,
     SchedulerError,

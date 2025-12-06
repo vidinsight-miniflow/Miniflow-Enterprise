@@ -5,13 +5,13 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.miniflow.core.exceptions import AppException, ErrorCode
-from src.miniflow.server.schemas import (
+from miniflow.core.exceptions import AppException, ErrorCode
+from ..schemas import (
     create_error_response,
     get_trace_id,
 )
 
-from ...utils import EnvironmentHandler
+from miniflow.utils import EnvironmentHandler
 
 
 # ---------------------------------------------------------
@@ -188,7 +188,7 @@ async def app_exception_handler(request: Request, exception: AppException) -> JS
         code=http_status,
     )
 
-    return JSONResponse(status_code=http_status, content=response_data.model_dump())
+    return JSONResponse(status_code=http_status, content=response_data)
 
 
 async def validation_exception_handler(request: Request, exception: RequestValidationError) -> JSONResponse:
@@ -214,7 +214,7 @@ async def validation_exception_handler(request: Request, exception: RequestValid
         code=status.HTTP_422_UNPROCESSABLE_ENTITY,
     )
 
-    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=response_data.model_dump())
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=response_data)
 
 
 async def http_exception_handler(request: Request, exception: StarletteHTTPException) -> JSONResponse:
@@ -231,7 +231,7 @@ async def http_exception_handler(request: Request, exception: StarletteHTTPExcep
         code=exception.status_code,
     )
 
-    return JSONResponse(status_code=exception.status_code, content=response_data.model_dump())
+    return JSONResponse(status_code=exception.status_code, content=response_data)
 
 
 async def generic_exception_handler(request: Request, exception: Exception) -> JSONResponse:
@@ -263,8 +263,16 @@ async def generic_exception_handler(request: Request, exception: Exception) -> J
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=response_data.model_dump()
+        content=response_data
     )
+
+
+def register_exception_handlers(app) -> None:
+    """Register all exception handlers to FastAPI app."""
+    app.add_exception_handler(AppException, app_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, generic_exception_handler)
 
 
 """
@@ -275,4 +283,3 @@ formatta API response'a çeviren merkezi bir hata yönetim modülüdür. Sistemd
 - HTTPException handler (Starlette): Yetki hataları, manual raise edilen 404, 403, 405 gibi durumları yakalar.
 - Generic Exception handler: Tüm beklenmeyen hataları yakalayan son kalkan.
 """
-

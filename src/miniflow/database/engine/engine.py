@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, Engine, text
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, DBAPIError
 
 from ..config import DatabaseConfig
-from src.miniflow.core.exceptions import (
+from miniflow.core.exceptions import (
     DatabaseError, DatabaseConnectionError, DatabaseQueryError,
     DatabaseConfigurationError, DatabaseSessionError, DatabaseEngineError,
     DatabaseTransactionError

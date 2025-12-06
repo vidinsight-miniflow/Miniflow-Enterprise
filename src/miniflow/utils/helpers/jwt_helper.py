@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 
 from ..handlers import EnvironmentHandler
 from ..handlers import ConfigurationHandler
-from src.miniflow.core.exceptions import TokenExpiredError, TokenInvalidError
+from miniflow.core.exceptions import TokenExpiredError, TokenInvalidError
 
 
 # Cache variables for lazy loading
