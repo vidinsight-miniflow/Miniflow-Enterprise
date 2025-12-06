@@ -18,6 +18,14 @@ from pathlib import Path
 from typing import Optional
 
 # ============================================================================
+# PROJECT ROOT PATH SETUP
+# ============================================================================
+# Add project root to Python path for seeds import
+_project_root = Path(__file__).resolve().parents[2]  # src/miniflow/__main__.py -> project root
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+# ============================================================================
 # THIRD-PARTY IMPORTS
 # ============================================================================
 from sqlalchemy import create_engine, inspect, text
@@ -73,13 +81,17 @@ if len(sys.argv) > 1 and sys.argv[1].lower() in ("help", "--help", "-h"):
     print("\n" + "=" * 70)
     print("MINIFLOW ENTERPRISE - Available Commands".center(70))
     print("=" * 70)
-    print("\n  setup      Initial setup (database, seed data, tests)")
+    print("\n  quickstart  Interactive .env setup wizard")
+    print("  setup      Initial setup (database, seed data, tests)")
     print("  run        Start application (default)")
     print("  help       Show this help message")
     print("\nExamples:")
-    print("  python -m src.miniflow setup")
-    print("  python -m src.miniflow run")
-    print("  python -m src.miniflow        # defaults to 'run'\n")
+    print("  miniflow quickstart  # Create .env file interactively")
+    print("  miniflow setup       # Initialize database")
+    print("  miniflow run         # Start application")
+    print("  miniflow             # defaults to 'run'")
+    print("\nNote: If 'miniflow' command not found, use:")
+    print("  python -m src.miniflow <command>\n")
     sys.exit(0)
 
 
@@ -650,12 +662,18 @@ class MiniFlow:
 # MAIN ENTRY POINT
 # ============================================================================
 
-if __name__ == "__main__":
-    """Main entry point for MiniFlow application."""
+def main():
+    """Main entry point for MiniFlow CLI - used by pyproject.toml scripts."""
     miniflow = None
 
     try:
         command = sys.argv[1].lower() if len(sys.argv) > 1 else "run"
+        
+        # Quickstart komutu - .env oluşturma wizard
+        if command == "quickstart":
+            _quickstart()
+            return
+        
         miniflow = MiniFlow()
 
         if command == "setup":
@@ -664,7 +682,7 @@ if __name__ == "__main__":
             miniflow.run()
         else:
             print(f"\nUnknown command: {command}")
-            print("Use 'python -m src.miniflow help' for available commands\n")
+            print("Use 'miniflow help' for available commands\n")
             sys.exit(1)
 
     except KeyboardInterrupt:
@@ -675,3 +693,83 @@ if __name__ == "__main__":
         if miniflow and miniflow.is_development:
             traceback.print_exc()
         sys.exit(1)
+
+
+def _quickstart():
+    """İnteraktif .env oluşturma wizard'ı."""
+    import secrets
+    import os
+    
+    print("\n" + "=" * 60)
+    print("MINIFLOW QUICKSTART".center(60))
+    print("=" * 60 + "\n")
+    
+    env_path = Path(".env")
+    
+    # .env var mı kontrol et
+    if env_path.exists():
+        # Mevcut .env dosyasını kontrol et
+        from dotenv import load_dotenv
+        load_dotenv(env_path)
+        
+        # Gerekli değişkenler var mı kontrol et
+        required_vars = ["APP_ENV", "DB_TYPE", "TEST_KEY", "JWT_SECRET_KEY", "ENCRYPTION_KEY"]
+        missing_vars = [var for var in required_vars if not os.getenv(var)]
+        
+        if missing_vars:
+            print(f"⚠️  .env dosyası mevcut ancak bazı değişkenler eksik: {', '.join(missing_vars)}")
+            response = input("Üzerine yazılsın mı? [y/N]: ")
+            if response.lower() != 'y':
+                print("\n❌ Eksik değişkenler nedeniyle devam edilemiyor.")
+                print("   Lütfen .env dosyasını düzenleyin veya 'y' ile yeni oluşturun.\n")
+                return
+        else:
+            # Tüm gerekli değişkenler var, mevcut .env kullanılacak
+            app_env = os.getenv("APP_ENV", "local")
+            print(f"✅ Mevcut .env dosyası bulundu (APP_ENV={app_env})")
+            print("   Mevcut yapılandırma kullanılacak.\n")
+            print("📋 Sonraki adımlar:")
+            print("   miniflow setup   # Veritabanını başlat (henüz yapılmadıysa)")
+            print("   miniflow run     # Uygulamayı başlat")
+            print()
+            return
+    
+    # Secret key'leri oluştur
+    jwt_key = secrets.token_hex(32)
+    enc_key = secrets.token_hex(32)
+    
+    # Ortam seçimi
+    print("Ortam seçin:")
+    print("  1) local  - Yerel geliştirme (varsayılan)")
+    print("  2) dev    - Development sunucusu")
+    print("  3) test   - Test ortamı")
+    print("  4) prod   - Production")
+    
+    choice = input("\nSeçim [1]: ").strip() or "1"
+    env_map = {"1": "local", "2": "dev", "3": "test", "4": "prod"}
+    app_env = env_map.get(choice, "local")
+    
+    # .env oluştur
+    env_content = f"""# MiniFlow Enterprise Configuration
+# Oluşturulma: quickstart wizard
+
+APP_ENV={app_env}
+DB_TYPE=sqlite
+TEST_KEY=ThisKeyIsForConfigTest
+
+JWT_SECRET_KEY={jwt_key}
+JWT_ALGORITHM=HS256
+ENCRYPTION_KEY={enc_key}
+"""
+    
+    env_path.write_text(env_content)
+    
+    print(f"\n✅ .env dosyası oluşturuldu (APP_ENV={app_env})")
+    print("\n📋 Sonraki adımlar:")
+    print("   miniflow setup   # Veritabanını başlat")
+    print("   miniflow run     # Uygulamayı başlat")
+    print()
+
+
+if __name__ == "__main__":
+    main()
