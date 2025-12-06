@@ -32,12 +32,13 @@ jobs:
           VERSION: ${{ github.run_number }}
           GITHUB_REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAILTRAP_API_KEY: ${{ secrets.MAILTRAP_API_KEY }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT || 22 }}
-          envs: VERSION,GITHUB_REPO,GITHUB_TOKEN
+          envs: VERSION,GITHUB_REPO,GITHUB_TOKEN,MAILTRAP_API_KEY
           command_timeout: 30m
           script: |
             set -euo pipefail
@@ -65,19 +66,24 @@ jobs:
               # Environment dosyası oluştur
               echo "📝 Creating environment file..."
               echo "TEST_KEY=ThisKeyIsForConfigTest" > .env
-              echo "APP_ENV=dev" >> .env
+              echo "APP_ENV=prod" >> .env
               echo "DB_TYPE=sqlite" >> .env
               echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
-              echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-              echo "MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}" >> .env
+              echo "JWT_ALGORITHM=HS256" >> .env
+              echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> .env
+              if [ -n "${MAILTRAP_API_KEY:-}" ]; then
+                echo "MAILTRAP_API_KEY=${MAILTRAP_API_KEY}" >> .env
+              fi
 
+              # Dependency güncelle (editable mode ile PYTHONPATH sorunu çözülür)
+              echo "📦 Updating dependencies..."
+              pip3 install --user --upgrade pip setuptools wheel
+              pip3 install --user --upgrade -r requirements.txt
+              pip3 install --user -e .
+              
               # Database setup
               echo "🗄️ Setting up database..."
-              python3 -m src.miniflow setup
-              
-              # Dependency güncelle
-              echo "📦 Updating dependencies..."
-              pip3 install --user --upgrade -r requirements.txt
+              miniflow setup || python3 -m src.miniflow setup
             
             # ──────────────────────────────────────────────────────────────
             # CREATE: Servis yoksa sıfırdan oluştur
@@ -99,23 +105,27 @@ jobs:
               
               cd "${APP_DIR}"
               
-              # Bağımlılıkları yükle
+              # Bağımlılıkları yükle (editable mode ile PYTHONPATH sorunu çözülür)
               echo "📦 Installing dependencies..."
               pip install --user --upgrade pip setuptools wheel
               pip install --user -r requirements.txt
+              pip install --user -e .
               
               # Environment dosyası oluştur
               echo "📝 Creating environment file..."
               echo "TEST_KEY=ThisKeyIsForConfigTest" > .env
-              echo "APP_ENV=dev" >> .env
+              echo "APP_ENV=prod" >> .env
               echo "DB_TYPE=sqlite" >> .env
               echo "JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}" >> .env
-              echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-              echo "MAILTRAP_API_KEY=${{ secrets.MAILTRAP_API_KEY }}" >> .env
-              
+              echo "JWT_ALGORITHM=HS256" >> .env
+              echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> .env
+              if [ -n "${MAILTRAP_API_KEY:-}" ]; then
+                echo "MAILTRAP_API_KEY=${MAILTRAP_API_KEY}" >> .env
+              fi
+
               # Database setup
               echo "🗄️ Setting up database..."
-              python3 -m src.miniflow setup
+              miniflow setup || python3 -m src.miniflow setup
               
               # Systemd servis dosyası oluştur
               echo "⚙️ Creating systemd service..."
@@ -128,9 +138,8 @@ jobs:
               echo "User=ubuntu" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "WorkingDirectory=${APP_DIR}" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "Environment=\"PATH=/home/ubuntu/.local/bin:/usr/bin\"" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
-              echo "Environment=\"PYTHONPATH=${APP_DIR}\"" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "EnvironmentFile=${APP_DIR}/.env" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
-              echo "ExecStart=/usr/bin/python3 -m src.miniflow run" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
+              echo "ExecStart=/bin/bash -c 'if command -v miniflow &> /dev/null; then miniflow run; else /usr/bin/python3 -m src.miniflow run; fi'" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "Restart=always" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
               echo "RestartSec=10" | sudo tee -a /etc/systemd/system/${APP_NAME}.service > /dev/null
