@@ -20,7 +20,7 @@ jobs:
     if: |
       (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch' && !inputs.rollback)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment:
       name: production
       url: http://miniflow.vidinsight.com.tr:8000
