@@ -148,33 +148,54 @@ class DatabaseConfig:
             # Eğer memory mode isteniyorsa sqlite_path == ":memory:" olarak verilebilir.
             if self.sqlite_path == ":memory:":
                 # Multi-threaded testing için shared cache mode kullan
-                return "sqlite:///file::memory:?cache=shared&uri=true"
-            # normalize path — create_engine string olarak kabul edecektir
-            return f"sqlite:///{self.sqlite_path}"
+                result = "sqlite:///file::memory:?cache=shared&uri=true"
+            else:
+                # normalize path — create_engine string olarak kabul edecektir
+                result = f"sqlite:///{self.sqlite_path}"
+        else:
+            # PostgreSQL ve MySQL gibi diğer türler için URL.create kullanımı (güvenli kaçış sağlar)
+            drivername = self.db_type.driver_name
+            query_params: Dict[str, Any] = {}
+            # MySQL için varsayılan charset ekleyelim (gerekirse kullanıcı connect_args ile override edebilir)
+            if self.db_type == DatabaseType.MYSQL:
+                query_params["charset"] = "utf8mb4"
+            # PostgreSQL için application_name ve statement_timeout (options) ekleyelim
+            if self.db_type == DatabaseType.POSTGRESQL:
+                if self.application_name:
+                    query_params["application_name"] = self.application_name
+                if self.statement_timeout_ms is not None:
+                    # Validation __post_init__'te yapıldı, direkt kullan
+                    query_params["options"] = f"-c statement_timeout={self.statement_timeout_ms}ms"
 
-        # PostgreSQL ve MySQL gibi diğer türler için URL.create kullanımı (güvenli kaçış sağlar)
-        drivername = self.db_type.driver_name
-        query_params: Dict[str, Any] = {}
-        # MySQL için varsayılan charset ekleyelim (gerekirse kullanıcı connect_args ile override edebilir)
-        if self.db_type == DatabaseType.MYSQL:
-            query_params["charset"] = "utf8mb4"
-        # PostgreSQL için application_name ve statement_timeout (options) ekleyelim
-        if self.db_type == DatabaseType.POSTGRESQL:
-            if self.application_name:
-                query_params["application_name"] = self.application_name
-            if self.statement_timeout_ms is not None:
-                # Validation __post_init__'te yapıldı, direkt kullan
-                query_params["options"] = f"-c statement_timeout={self.statement_timeout_ms}ms"
-
-        return str(URL.create(
-            drivername=drivername,
-            username=self.username,
-            password=self.password,
-            host=self.host,
-            port=self.port,
-            database=self.db_name,
-            query=query_params or None
-        ))
+            result = str(URL.create(
+                drivername=drivername,
+                username=self.username,
+                password=self.password,
+                host=self.host,
+                port=self.port,
+                database=self.db_name,
+                query=query_params or None
+            ))
+        
+        # CRITICAL VALIDATION: Ensure we're returning a string!
+        if not isinstance(result, str):
+            error_details = {
+                "db_type": self.db_type.value,
+                "db_name": self.db_name,
+                "host": self.host,
+                "port": self.port,
+                "sqlite_path": getattr(self, 'sqlite_path', None),
+                "result_type": type(result).__name__,
+                "result_value": repr(result),
+            }
+            raise DatabaseConfigurationError(
+                config_name={
+                    "error": "get_connection_string returned non-string value",
+                    "details": error_details
+                }
+            )
+        
+        return result
 
 
     def get_pool_class(self):

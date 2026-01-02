@@ -284,7 +284,30 @@ class DatabaseEngine:
         self._engine: Optional[Engine] = None
         self._session_factory: Optional[sessionmaker] = None
         self.config = self._validate_config(config)
-        self._connection_string: str = config.get_connection_string()
+        
+        # Get and validate connection string
+        connection_string = config.get_connection_string()
+        if not isinstance(connection_string, str):
+            # CRITICAL ERROR: Connection string is not a string!
+            # This should NEVER happen - indicates a bug in DatabaseConfig
+            error_details = {
+                "expected_type": "str",
+                "actual_type": type(connection_string).__name__,
+                "actual_value": repr(connection_string),
+                "config.db_type": config.db_type.value if hasattr(config, 'db_type') else "unknown",
+                "config.db_name": getattr(config, 'db_name', "unknown"),
+                "config.host": getattr(config, 'host', "unknown"),
+                "config.port": getattr(config, 'port', "unknown"),
+                "config.sqlite_path": getattr(config, 'sqlite_path', "unknown"),
+            }
+            print(f"[CRITICAL] DatabaseEngine.__init__: Connection string validation FAILED!")
+            print(f"[CRITICAL] Details: {error_details}")
+            error = DatabaseConfigurationError(
+                config_name={"connection_string_validation_failed": error_details}
+            )
+            self._log_error("__init__", error)
+            raise error
+        self._connection_string: str = connection_string
         self._base_metadata = None
         
         # Thread-safe oturum takibi
@@ -990,6 +1013,30 @@ class DatabaseEngine:
             self._log_error("session_context", error)
             raise error
         
+        # Validate connection string integrity
+        if not isinstance(self._connection_string, str):
+            # CRITICAL: Connection string has been corrupted!
+            # This should NEVER happen after successful __init__
+            error_details = {
+                "method": "session_context",
+                "expected_type": "str",
+                "actual_type": type(self._connection_string).__name__,
+                "actual_value": repr(self._connection_string),
+                "config.db_type": self.config.db_type.value if hasattr(self.config, 'db_type') else "unknown",
+                "config.db_name": getattr(self.config, 'db_name', "unknown"),
+                "engine_id": id(self),
+                "engine_is_alive": self.is_alive,
+            }
+            error_msg = (
+                f"CRITICAL BUG DETECTED: _connection_string corrupted!\n"
+                f"Expected: str, Got: {type(self._connection_string).__name__}\n"
+                f"Value: {repr(self._connection_string)}\n"
+                f"Details: {error_details}\n"
+                f"This indicates memory corruption or a thread safety issue!"
+            )
+            print(f"[CRITICAL] DatabaseEngine.session_context: {error_msg}")
+            raise DatabaseEngineError()
+        
         # Timeout validation
         if timeout is not None:
             if not isinstance(timeout, (int, float)):
@@ -1018,7 +1065,23 @@ class DatabaseEngine:
             # Timeout ayarla (PostgreSQL/MySQL)
             if timeout:
                 try:
-                    if 'postgresql' in self._connection_string:
+                    # Validate that _connection_string is actually a string
+                    if not isinstance(self._connection_string, str):
+                        # BUG DETECTED: This is the source of the "argument of type 'int' is not iterable" error!
+                        error_details = {
+                            "location": "session_context > timeout block",
+                            "expected_type": "str",
+                            "actual_type": type(self._connection_string).__name__,
+                            "actual_value": repr(self._connection_string),
+                            "timeout_value": timeout,
+                            "engine_id": id(self),
+                            "config.db_type": self.config.db_type.value if hasattr(self.config, 'db_type') else "unknown",
+                        }
+                        print(f"[ERROR] BUG: _connection_string is {type(self._connection_string).__name__}, not str!")
+                        print(f"[ERROR] This is the root cause of 'argument of type int is not iterable' error")
+                        print(f"[ERROR] Details: {error_details}")
+                        print(f"[ERROR] Skipping timeout setting to prevent crash")
+                    elif 'postgresql' in self._connection_string:
                         session.execute(text(f"SET statement_timeout = {int(timeout * 1000)}"))
                     elif 'mysql' in self._connection_string:
                         session.execute(text(f"SET SESSION max_execution_time = {int(timeout * 1000)}"))
