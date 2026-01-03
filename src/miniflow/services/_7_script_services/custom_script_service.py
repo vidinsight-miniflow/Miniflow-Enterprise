@@ -9,11 +9,14 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils.helpers.file_helper import (
     upload_custom_script,
     delete_file,
 )
 
+# Logger instance
+logger = get_logger(__name__)
 
 class CustomScriptService:
     """

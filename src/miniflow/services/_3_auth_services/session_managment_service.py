@@ -3,6 +3,10 @@ from datetime import datetime, timezone
 
 from miniflow.database import RepositoryRegistry, with_transaction, with_readonly_session
 from miniflow.core.exceptions import ResourceNotFoundError
+from miniflow.core.logger import get_logger
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class SessionManagementService:
@@ -140,6 +144,8 @@ class SessionManagementService:
         Raises:
             ResourceNotFoundError: Session bulunamazsa
         """
+        logger.info(f"Revoking session: session_id={session_id}, user_id={user_id}, reason={reason}")
+        
         auth_session = cls._auth_session_repo._revoke_specific_session(
             session, 
             session_id=session_id, 
@@ -147,10 +153,13 @@ class SessionManagementService:
         )
         
         if not auth_session:
+            logger.warning(f"Session revoke failed: Session not found - session_id={session_id}, user_id={user_id}")
             raise ResourceNotFoundError(
                 resource_name="auth_session",
                 message="Session not found or already revoked"
             )
+        
+        logger.info(f"Session revoked successfully: session_id={session_id}, user_id={user_id}")
         
         # Reason güncelle
         if reason:

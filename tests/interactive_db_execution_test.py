@@ -586,12 +586,8 @@ def step6_start_engine_and_scheduler():
     print_step(6, "Engine ve Scheduler Başlatma")
     
     from miniflow.engine.manager import EngineManager
-    from miniflow.scheduler.input_handler import InputHandler
-    from miniflow.scheduler.output_handler import OutputHandler
-    from miniflow.services._0_internal_services.scheduler_service import (
-        SchedulerForInputHandler,
-        SchedulerForOutputHandler
-    )
+    from miniflow.handlers.execution_input_handler import ExecutionInputHandler
+    from miniflow.handlers.execution_output_handler import ExecutionOutputHandler
     
     try:
         # Engine Manager başlat

@@ -20,7 +20,7 @@ class Workspace(BaseModel):
     # Temel bilgiler
     name = Column(String(100), nullable=False, index=True,
         comment="Workspace adı")
-    slug = Column(String(100), nullable=False, unique=True, index=True,
+    slug = Column(String(100), nullable=False, index=True,  # unique=True kaldırıldı - UniqueConstraint zaten var
         comment="URL-friendly benzersiz slug")
     description = Column(Text, nullable=True,
         comment="Workspace açıklaması")

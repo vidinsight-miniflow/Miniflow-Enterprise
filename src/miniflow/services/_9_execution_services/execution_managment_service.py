@@ -8,6 +8,10 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger, log_function_call
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class ExecutionManagementService:
@@ -146,6 +150,7 @@ class ExecutionManagementService:
 
     # ==================================================================================== START EXECUTION ==
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def start_execution_by_trigger(
         cls,
@@ -170,9 +175,12 @@ class ExecutionManagementService:
         Returns:
             {"id": str, "started_at": str, "execution_inputs_count": int}
         """
+        logger.info(f"Starting execution by trigger: trigger_id={trigger_id}, triggered_by={triggered_by}")
+        
         # Trigger kontrolü
         trigger = cls._trigger_repo._get_by_id(session, record_id=trigger_id)
         if not trigger:
+            logger.warning(f"Execution start failed: Trigger not found - trigger_id={trigger_id}")
             raise ResourceNotFoundError(
                 resource_name="Trigger",
                 resource_id=trigger_id
@@ -180,6 +188,7 @@ class ExecutionManagementService:
         
         # Trigger aktif mi?
         if not trigger.is_enabled:
+            logger.warning(f"Execution start failed: Trigger disabled - trigger_id={trigger_id}, workflow_id={trigger.workflow_id}")
             raise BusinessRuleViolationError(
                 rule_name="trigger_disabled",
                 rule_detail=f"Trigger {trigger_id} is disabled",
@@ -221,6 +230,7 @@ class ExecutionManagementService:
         }
 
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def start_execution_by_workflow(
         cls,
@@ -246,6 +256,8 @@ class ExecutionManagementService:
         Returns:
             {"id": str, "started_at": str, "execution_inputs_count": int}
         """
+        logger.info(f"Starting execution by workflow: workflow_id={workflow_id}, workspace_id={workspace_id}, triggered_by={triggered_by}")
+        
         # Execution oluştur (trigger_id = None)
         execution = cls._execution_repo._create(
             session,

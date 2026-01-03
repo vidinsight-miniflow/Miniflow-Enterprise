@@ -6,7 +6,11 @@ from miniflow.core.exceptions import (
     ResourceAlreadyExistsError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils.helpers.encryption_helper import encrypt_data, decrypt_data
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class VariableService:

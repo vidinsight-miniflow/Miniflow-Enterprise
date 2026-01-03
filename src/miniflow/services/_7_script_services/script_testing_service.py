@@ -3,10 +3,10 @@ from datetime import datetime, timezone
 
 from miniflow.database import RepositoryRegistry, with_transaction, with_readonly_session
 from miniflow.models.enums import ScriptTestStatus
-from miniflow.core.exceptions import (
-    ResourceNotFoundError,
+from miniflow.core.exceptions import (ResourceNotFoundError,
     BusinessRuleViolationError,
 )
+from miniflow.core.logger import get_logger
 
 
 class ScriptTestingService:

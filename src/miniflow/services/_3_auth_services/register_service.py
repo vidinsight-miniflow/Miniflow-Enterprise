@@ -9,8 +9,12 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger, log_function_call
 from miniflow.utils.helpers.encryption_helper import hash_password, hash_data
 from miniflow.utils import MailTrapClient
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class RegisterService:
@@ -27,6 +31,7 @@ class RegisterService:
 
     # ==================================================================================== REGISTER ==
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def register_user(
         cls,
@@ -72,8 +77,11 @@ class RegisterService:
             BusinessRuleViolationError: Sözleşme versiyonu bulunamadı
             ResourceAlreadyExistsError: Email veya kullanıcı adı zaten mevcut
         """
+        logger.info(f"User registration attempt: username={username}, email={email}, ip: {ip_address}")
+        
         # Validasyonlar
         if not User.validate_email_format(email):
+            logger.warning(f"Registration failed: Invalid email format - email={email}")
             raise InvalidInputError(
                 field_name="email",
                 message="Invalid email format"
@@ -82,6 +90,7 @@ class RegisterService:
         password_validation = User.validate_password_strength(password)
         if not password_validation["valid"]:
             errors = ", ".join(password_validation.get("errors", []))
+            logger.warning(f"Registration failed: Password validation failed - username={username}, email={email}")
             raise InvalidInputError(
                 field_name="password",
                 message=f"Password requirements not met: {errors}"
@@ -90,6 +99,7 @@ class RegisterService:
         username_validation = User.validate_username(username)
         if not username_validation["valid"]:
             errors = ", ".join(username_validation.get("errors", []))
+            logger.warning(f"Registration failed: Username validation failed - username={username}, email={email}")
             raise InvalidInputError(
                 field_name="username",
                 message=f"Username validation failed: {errors}"
@@ -121,6 +131,7 @@ class RegisterService:
         # Email kontrolü - zaten kullanılıyor mu?
         existing_user_by_email = cls._user_repo._get_by_email(session, email=email, include_deleted=False)
         if existing_user_by_email:
+            logger.warning(f"Registration failed: Email already exists - email={email}, ip: {ip_address}")
             raise ResourceAlreadyExistsError(
                 resource_name="user",
                 conflicting_field="email",
@@ -130,6 +141,7 @@ class RegisterService:
         # Username kontrolü - zaten kullanılıyor mu?
         existing_user_by_username = cls._user_repo._get_by_username(session, username=username, include_deleted=False)
         if existing_user_by_username:
+            logger.warning(f"Registration failed: Username already exists - username={username}, ip: {ip_address}")
             raise ResourceAlreadyExistsError(
                 resource_name="user",
                 conflicting_field="username",
@@ -156,6 +168,8 @@ class RegisterService:
         # Email doğrulama token'ı oluştur
         user.generate_email_verification_token()
         
+        logger.debug(f"User created: user_id={user.id}, username={username}, email={email}")
+        
         # Sözleşme kabullerini kaydet
         ip_hash = hash_data(ip_address) if ip_address else None
         ua_hash = hash_data(user_agent) if user_agent else None
@@ -176,6 +190,8 @@ class RegisterService:
         
         # Doğrulama emaili gönder
         cls._send_verification_email(user.email, user.name, user.email_verification_token)
+        
+        logger.info(f"User registration successful: user_id={user.id}, username={username}, email={email}, ip: {ip_address}")
         
         return {
             "id": user.id,

@@ -6,8 +6,11 @@ from miniflow.core.exceptions import (
     ResourceNotFoundError,
     BusinessRuleViolationError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils import ConfigurationHandler
 
+# Logger instance
+logger = get_logger(__name__)
 
 class UserManagementService:
     """

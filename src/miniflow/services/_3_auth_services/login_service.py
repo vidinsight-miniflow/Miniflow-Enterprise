@@ -8,6 +8,7 @@ from miniflow.core.exceptions import (
     ResourceNotFoundError,
     BusinessRuleViolationError,
 )
+from miniflow.core.logger import get_logger, log_function_call
 from miniflow.utils.helpers.encryption_helper import verify_password
 from miniflow.utils.helpers.jwt_helper import (
     create_access_token, 
@@ -17,6 +18,9 @@ from miniflow.utils.helpers.jwt_helper import (
     is_token_valid
 )
 from miniflow.utils import ConfigurationHandler
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class LoginService:
@@ -45,6 +49,7 @@ class LoginService:
 
     # ==================================================================================== LOGIN ==
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def login(
         cls,
@@ -79,9 +84,12 @@ class LoginService:
         Raises:
             BusinessRuleViolationError: Geçersiz kimlik, hesap kilitli, email doğrulanmamış
         """
+        logger.info(f"Login attempt for user: {email_or_username}, ip: {ip_address}")
+        
         # Kullanıcıyı bul
         user = cls._user_repo._get_by_email_or_username(session, email_or_username, include_deleted=False)
         if not user:
+            logger.warning(f"Login failed: User not found - {email_or_username}, ip: {ip_address}")
             raise BusinessRuleViolationError(
                 rule_name="invalid_credentials",
                 rule_detail="User not found with provided email/username",
@@ -90,6 +98,7 @@ class LoginService:
         
         # Email doğrulanmış mı?
         if not user.is_verified:
+            logger.warning(f"Login failed: Email not verified - user_id={user.id}, email={user.email}")
             cls._login_history_repo._create(
                 session,
                 user_id=user.id,
@@ -147,6 +156,7 @@ class LoginService:
         
         # Şifre doğrulama
         if not verify_password(password, user.hashed_password):
+            logger.warning(f"Login failed: Invalid password - user_id={user.id}, email={user.email}, ip: {ip_address}")
             cls._login_history_repo._create(
                 session,
                 user_id=user.id,
@@ -174,6 +184,7 @@ class LoginService:
                 # Kalıcı mı yoksa geçici mi kilitleme yapılacak?
                 if recent_lockouts >= cls._max_lockouts_before_permanent:
                     # KALICI KİLİTLEME - Sadece admin açabilir
+                    logger.critical(f"Account permanently locked due to too many lockouts - user_id={user.id}, lockouts={recent_lockouts + 1}")
                     cls._user_repo._update(
                         session,
                         record_id=user.id,
@@ -286,6 +297,8 @@ class LoginService:
             max_records=cls._max_login_history_per_user
         )
         
+        logger.info(f"Login successful: user_id={user.id}, username={user.username}, email={user.email}, ip: {ip_address}")
+        
         return {
             "id": user.id,
             "username": user.username,
@@ -296,6 +309,7 @@ class LoginService:
 
     # ==================================================================================== LOGOUT ==
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def logout(
         cls,
@@ -315,9 +329,12 @@ class LoginService:
         Raises:
             BusinessRuleViolationError: Geçersiz token
         """
+        logger.debug("Logout request received")
+        
         try:
             _, payload = validate_access_token(access_token)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Logout failed: Invalid access token - {type(e).__name__}: {e}")
             raise BusinessRuleViolationError(
                 rule_name="invalid_access_token",
                 rule_detail="Token validation failed or token expired",
@@ -331,6 +348,7 @@ class LoginService:
         )
         
         if not auth_session:
+            logger.warning(f"Logout failed: Session not found - access_token_jti: {access_token_jti}")
             raise BusinessRuleViolationError(
                 rule_name="session_not_found",
                 rule_detail=f"Session not found for access_token_jti: {access_token_jti}",
@@ -338,6 +356,7 @@ class LoginService:
             )
         
         if auth_session.is_revoked:
+            logger.warning(f"Logout failed: Session already revoked - session_id={auth_session.id}, user_id={auth_session.user_id}")
             raise BusinessRuleViolationError(
                 rule_name="session_already_revoked",
                 rule_detail=f"Session {auth_session.id} has already been revoked",
@@ -350,6 +369,8 @@ class LoginService:
             session_id=auth_session.id, 
             user_id=payload['user_id']
         )
+        
+        logger.info(f"Logout successful: session_id={auth_session.id}, user_id={auth_session.user_id}")
         
         return {
             "success": True,

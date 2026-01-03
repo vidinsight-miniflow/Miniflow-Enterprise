@@ -7,6 +7,7 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils.helpers.file_helper import (
     upload_file,
     delete_file as delete_file_from_storage,
@@ -16,6 +17,8 @@ from miniflow.utils.helpers.file_helper import (
     get_folder_size,
 )
 
+# Logger instance
+logger = get_logger(__name__)
 
 class FileService:
     """

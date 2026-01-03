@@ -2,6 +2,10 @@ import multiprocessing
 import json
 import queue
 import time
+from miniflow.core.logger import get_logger
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class BaseQueue:
@@ -16,11 +20,11 @@ class BaseQueue:
             return True
         except queue.Full:
             self.dropped_items += 1
-            print(f"[BaseQueue] WARNING: Queue full, item dropped (total dropped: {self.dropped_items})")
+            logger.warning(f"Queue full, item dropped (total dropped: {self.dropped_items})")
             return False
         except Exception as e:
             self.dropped_items += 1
-            print(f"[BaseQueue] ERROR: Put failed: {e}")
+            logger.error(f"Put failed: {e}", exc_info=True)
             return False
     
     def put_with_retry(self, item: json, max_retries=3, retry_delay=0.1):
@@ -36,9 +40,9 @@ class BaseQueue:
         try:
             self.q.put(item, timeout=1.0)
             return True
-        except:
+        except Exception as e:
             self.dropped_items += 1
-            print("[BaseQueue] CRITICAL: Queue full after 3 retries, item dropped")
+            logger.critical(f"Queue full after 3 retries, item dropped: {e}", exc_info=True)
             return False
     
     def put_batch(self, items: list, max_retries: int = 3, retry_delay: float = 0.1):
@@ -73,7 +77,7 @@ class BaseQueue:
                 failed_items.append(item)
         
         if failed_items:
-            print(f"[BaseQueue] ERROR: Failed to add {len(failed_items)}/{len(items)} items to queue after {max_retries} retries")
+            logger.error(f"Failed to add {len(failed_items)}/{len(items)} items to queue after {max_retries} retries")
             return False
         
         return True
@@ -85,7 +89,7 @@ class BaseQueue:
         except queue.Empty:
             return None
         except Exception as e:
-            print(f"[BaseQueue] ERROR: Get with timeout failed: {e}")
+            logger.error(f"Get with timeout failed: {e}", exc_info=True)
             return None
 
     def get(self):
@@ -96,7 +100,7 @@ class BaseQueue:
         except queue.Empty:
             return None
         except Exception as e:
-            print(f"[BaseQueue] Get error: {e}")
+            logger.error(f"Get error: {e}", exc_info=True)
             return None
 
     def get_without_task(self):

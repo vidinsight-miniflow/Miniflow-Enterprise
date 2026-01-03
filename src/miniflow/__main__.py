@@ -75,6 +75,12 @@ from miniflow.utils import ConfigurationHandler, EnvironmentHandler, RedisClient
 from miniflow.utils.helpers.file_helper import create_resources_folder
 
 # ============================================================================
+# LOGGER
+# ============================================================================
+from miniflow.core.logger import configure_root_logger, get_logger
+import logging
+
+# ============================================================================
 # EARLY EXIT FOR HELP
 # ============================================================================
 if len(sys.argv) > 1 and sys.argv[1].lower() in ("help", "--help", "-h"):
@@ -100,6 +106,25 @@ class MiniFlow:
 
     def __init__(self):
         """Temel initialization"""
+        # Logger configuration - uygulama başlangıcında
+        log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+        level_map = {
+            'DEBUG': logging.DEBUG,
+            'INFO': logging.INFO,
+            'WARNING': logging.WARNING,
+            'ERROR': logging.ERROR,
+            'CRITICAL': logging.CRITICAL
+        }
+        level = level_map.get(log_level, logging.INFO)
+        
+        # Test ortamında console output kapat
+        console_output = os.getenv('APP_ENV', 'development') != 'test'
+        
+        configure_root_logger(level=level, console_output=console_output)
+        
+        logger = get_logger(__name__)
+        logger.info("MiniFlow application initializing...")
+        
         self._app_env: Optional[str] = None
         self._db_type: Optional[str] = None
         self._db_manager: Optional[DatabaseManager] = None

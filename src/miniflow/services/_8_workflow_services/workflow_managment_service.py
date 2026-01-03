@@ -8,6 +8,10 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger, log_function_call
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class WorkflowManagementService:
@@ -26,6 +30,7 @@ class WorkflowManagementService:
 
     # ==================================================================================== CREATE ==
     @classmethod
+    @log_function_call
     @with_transaction(manager=None)
     def create_workflow(
         cls,
@@ -56,14 +61,18 @@ class WorkflowManagementService:
         Returns:
             {"id": str}
         """
+        logger.info(f"Creating workflow: name={name}, workspace_id={workspace_id}, created_by={created_by}")
+        
         # Validasyonlar
         if not name or not name.strip():
+            logger.warning(f"Workflow creation failed: Empty name - workspace_id={workspace_id}")
             raise InvalidInputError(
                 field_name="name",
                 message="Workflow name cannot be empty"
             )
         
         if priority < 1:
+            logger.warning(f"Workflow creation failed: Invalid priority - workspace_id={workspace_id}, priority={priority}")
             raise InvalidInputError(
                 field_name="priority",
                 message="Priority must be greater than 0"
@@ -72,6 +81,7 @@ class WorkflowManagementService:
         # Workspace kontrolü
         workspace = cls._workspace_repo._get_by_id(session, record_id=workspace_id)
         if not workspace:
+            logger.warning(f"Workflow creation failed: Workspace not found - workspace_id={workspace_id}")
             raise ResourceNotFoundError(
                 resource_name="Workspace",
                 resource_id=workspace_id
@@ -79,6 +89,7 @@ class WorkflowManagementService:
         
         # Limit kontrolü
         if workspace.current_workflow_count >= workspace.workflow_limit:
+            logger.warning(f"Workflow creation failed: Limit reached - workspace_id={workspace_id}, count={workspace.current_workflow_count}, limit={workspace.workflow_limit}")
             raise BusinessRuleViolationError(
                 rule_name="workflow_limit_reached",
                 rule_detail=f"Workspace {workspace_id} has {workspace.current_workflow_count} workflows, limit is {workspace.workflow_limit}",
@@ -92,6 +103,7 @@ class WorkflowManagementService:
             name=name
         )
         if existing:
+            logger.warning(f"Workflow creation failed: Name already exists - workspace_id={workspace_id}, name={name}")
             raise ResourceAlreadyExistsError(
                 resource_name="Workflow",
                 conflicting_field="name",
@@ -131,6 +143,8 @@ class WorkflowManagementService:
             record_id=workspace_id,
             current_workflow_count=workspace.current_workflow_count + 1
         )
+        
+        logger.info(f"Workflow created successfully: workflow_id={workflow.id}, name={name}, workspace_id={workspace_id}, created_by={created_by}")
         
         return {"id": workflow.id}
 

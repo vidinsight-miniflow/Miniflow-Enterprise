@@ -9,7 +9,11 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils import MailTrapClient
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class UserProfileService:

@@ -2,6 +2,7 @@ from typing import Optional, Dict, List, Any
 
 from miniflow.database import RepositoryRegistry, with_readonly_session
 from miniflow.core.exceptions import ResourceNotFoundError
+from miniflow.core.logger import get_logger
 
 
 class LoginHistoryService:

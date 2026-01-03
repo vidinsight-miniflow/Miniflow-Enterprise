@@ -1,10 +1,10 @@
 import threading
-import logging
 from typing import Optional
 
 from ..config import DatabaseConfig
 from .engine import DatabaseEngine
 from miniflow.models import Base
+from miniflow.core.logger import get_logger
 
 
 class DatabaseManager:
@@ -103,7 +103,7 @@ class DatabaseManager:
                     instance._engine = None
                     instance._config = None
                     instance._initialized = False
-                    instance._logger = logging.getLogger(__name__)
+                    instance._logger = get_logger(__name__)
                     cls._instance = instance
                 elif cls._is_resetting:
                     # Reset sırasında yeni instance oluşturulamaz
@@ -219,8 +219,20 @@ class DatabaseManager:
             if self._initialized:
                 if not force_reinitialize:
                     error_msg = (
-                        "DatabaseManager already initialized. "
-                        "Use force_reinitialize=True to reinitialize or call reset() first."
+                        f"[DatabaseManager.initialize] Manager already initialized!\n"
+                        f"  Location: manager.py, line ~220\n"
+                        f"  Method: initialize()\n"
+                        f"  Current state: Already initialized\n"
+                        f"  Reason: DatabaseManager is a singleton and can only be initialized once\n"
+                        f"  Solutions:\n"
+                        f"    1. Use force_reinitialize=True to reinitialize\n"
+                        f"       manager.initialize(new_config, force_reinitialize=True)\n"
+                        f"    2. Call reset() first, then initialize again\n"
+                        f"       manager.reset()\n"
+                        f"       manager.initialize(new_config)\n"
+                        f"    3. Use the existing manager (recommended)\n"
+                        f"       manager = DatabaseManager()  # Returns existing instance\n"
+                        f"  Note: Multiple initializations are usually not needed in production"
                     )
                     self._logger.error(error_msg)
                     raise RuntimeError(error_msg)

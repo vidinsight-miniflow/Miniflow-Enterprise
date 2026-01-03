@@ -9,8 +9,11 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils.helpers.encryption_helper import hash_password
 
+# Logger instance
+logger = get_logger(__name__)
 
 # Varsayılan API key izinleri
 DEFAULT_PERMISSIONS = {

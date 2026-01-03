@@ -10,7 +10,10 @@ class Trigger(BaseModel):
     __prefix__ = "TRG"
     __tablename__ = 'triggers'
     __table_args__ = (
-        UniqueConstraint('workspace_id', 'name', name='_workspace_trigger_name_unique'),
+        # Kaldırıldı: workspace_id + name unique constraint
+        # Farklı workflow'lar için aynı isimli trigger'lar kullanılabilir
+        # Her trigger zaten ID ile unique olarak tanımlanıyor
+        
         # Performans optimizasyonu
         Index('idx_trigger_workspace_enabled', 'workspace_id', 'is_enabled'),
     )

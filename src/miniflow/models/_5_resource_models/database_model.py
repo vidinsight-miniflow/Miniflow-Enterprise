@@ -66,7 +66,7 @@ class Database(BaseModel):
 
 
     # Temel bilgiler
-    name = Column(String(100), nullable=False, index=True, unique=True)
+    name = Column(String(100), nullable=False, index=True)  # unique=True kaldırıldı - workspace bazında unique yeterli
     database_type = Column(Enum(DatabaseType), nullable=False, index=True)
     description = Column(Text, nullable=True)
 

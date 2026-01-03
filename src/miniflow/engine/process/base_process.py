@@ -5,6 +5,10 @@ import threading
 import time
 import importlib
 import os
+from miniflow.core.logger import get_logger
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 class BaseProcess:
@@ -26,11 +30,11 @@ class BaseProcess:
 
     def start(self):
         try:
-            print(f"[BASE PROCESS] Starting process...")
+            logger.info("Starting process...")
             self.process.start()
-            print(f"[BASE PROCESS] Process started successfully: PID={self.process.pid}")
+            logger.info(f"Process started successfully: PID={self.process.pid}")
         except Exception as e:
-            print(f"[BASE PROCESS] FAILED to start process: {str(e)}")
+            logger.error(f"FAILED to start process: {e}", exc_info=True)
             raise
 
     def run_process(self, cmd_pipe, health_pipe, output_queue):
@@ -40,13 +44,13 @@ class BaseProcess:
         output_queue: Sonuçları QueueWatcher'a göndermek için paylaşılan kuyruk
         """
         try:
-            print(f"[BASE PROCESS] Process {os.getpid()} started successfully")
+            logger.info(f"Process {os.getpid()} started successfully")
             # Process içinde lock ve thread listesi oluştur
             self.threads = []
             self.lock = threading.Lock()
             self.shutdown_event = threading.Event()
         except Exception as e:
-            print(f"[BASE PROCESS] Error in run_process initialization: {str(e)}")
+            logger.error(f"Error in run_process initialization: {e}", exc_info=True)
             return
 
         def health_check():

@@ -60,7 +60,7 @@ class File(BaseModel):
     owner_id = Column(String(20), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # Dosya bilgileri
-    name = Column(String(255), nullable=False, index=True, unique=True)
+    name = Column(String(255), nullable=False, index=True)  # unique=True kaldırıldı - workspace bazında unique yeterli
     original_filename = Column(String(255), nullable=False)
     file_path = Column(Text, nullable=False)
     file_size = Column(Integer, nullable=False)

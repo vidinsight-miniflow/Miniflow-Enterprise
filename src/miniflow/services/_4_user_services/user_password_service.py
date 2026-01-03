@@ -9,6 +9,10 @@ from miniflow.core.exceptions import (
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
+
+# Logger instance
+logger = get_logger(__name__)
 from miniflow.utils.helpers.encryption_helper import hash_password, verify_password
 from miniflow.utils import ConfigurationHandler, MailTrapClient
 

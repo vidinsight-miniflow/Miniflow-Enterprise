@@ -1,12 +1,12 @@
 from typing import Optional, Dict, Any, List
 
 from miniflow.database import RepositoryRegistry, with_transaction, with_readonly_session
-from miniflow.core.exceptions import (
-    ResourceNotFoundError,
+from miniflow.core.exceptions import (ResourceNotFoundError,
     ResourceAlreadyExistsError,
     BusinessRuleViolationError,
     InvalidInputError,
 )
+from miniflow.core.logger import get_logger
 
 
 class NodeService:

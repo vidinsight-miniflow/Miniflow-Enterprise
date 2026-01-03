@@ -22,7 +22,7 @@ class CustomScript(BaseModel):
         comment="Script'i yükleyen kullanıcı")
     
     # Temel bilgiler
-    name = Column(String(100), nullable=False, unique=True, index=True,
+    name = Column(String(100), nullable=False, index=True,  # unique=True kaldırıldı - workspace bazında unique yeterli
         comment="Script adı (workspace içinde benzersiz)")
     description = Column(Text, nullable=True,
         comment="Script açıklaması")

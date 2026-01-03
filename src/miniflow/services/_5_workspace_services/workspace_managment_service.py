@@ -7,6 +7,7 @@ from miniflow.core.exceptions import (
     ResourceAlreadyExistsError,
     BusinessRuleViolationError,
 )
+from miniflow.core.logger import get_logger
 from miniflow.utils.helpers.file_helper import (
     get_workspace_file_path,
     get_workspace_custom_script_path,
@@ -14,6 +15,8 @@ from miniflow.utils.helpers.file_helper import (
     delete_folder,
 )
 
+# Logger instance
+logger = get_logger(__name__)
 
 class WorkspaceManagementService:
     """

@@ -223,10 +223,11 @@ def step1_setup():
         print_success("Engine Manager hazır")
         
         # Input/Output Handlers
-        from miniflow.scheduler import InputHandler, OutputHandler
+        from miniflow.handlers.execution_input_handler import ExecutionInputHandler
+        from miniflow.handlers.execution_output_handler import ExecutionOutputHandler
         test_data['handlers'] = {
-            'input': InputHandler,
-            'output': OutputHandler,
+            'input': ExecutionInputHandler,
+            'output': ExecutionOutputHandler,
         }
         print_success("Input/Output Handlers hazır")
         
@@ -700,17 +701,13 @@ def step5_start_engine_and_scheduler():
         # Input Handler başlat - config hatası olsa bile devam et
         print_info("Input Handler başlatılıyor...")
         try:
-            input_handler = InputHandler(
-                scheduler_service=SchedulerForInputHandler,
-                exec_engine=engine
-            )
-            test_data['input_handler'] = input_handler
-            
-            success = input_handler.start()
+            success = InputHandler.start(engine)
             if success:
                 print_success("Input Handler başlatıldı")
+                test_data['input_handler'] = InputHandler
             else:
                 print_warning("Input Handler başlatılamadı - devam ediliyor")
+                test_data['input_handler'] = None
         except Exception as e:
             print_warning(f"Input Handler hatası (atlanıyor): {type(e).__name__}")
             # Test için basit bir polling mekanizması kuralım
@@ -719,15 +716,10 @@ def step5_start_engine_and_scheduler():
         # Output Handler başlat - config hatası olsa bile devam et
         print_info("Output Handler başlatılıyor...")
         try:
-            output_handler = OutputHandler(
-                scheduler_service=SchedulerForOutputHandler,
-                exec_engine=engine
-            )
-            test_data['output_handler'] = output_handler
-            
-            success = output_handler.start()
+            success = OutputHandler.start(engine)
             if success:
                 print_success("Output Handler başlatıldı")
+                test_data['output_handler'] = OutputHandler
             else:
                 print_warning("Output Handler başlatılamadı - devam ediliyor")
         except Exception as e:

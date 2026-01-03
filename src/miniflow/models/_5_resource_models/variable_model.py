@@ -47,7 +47,7 @@ class Variable(BaseModel):
 
 
     # Variable verisi
-    key = Column(String(100), nullable=False, index=True, unique=True)
+    key = Column(String(100), nullable=False, index=True)  # unique=True kaldırıldı - workspace bazında unique yeterli
     value = Column(Text, nullable=False)
     description = Column(Text, nullable=True)
     is_secret = Column(Boolean, default=False, nullable=False, index=True)

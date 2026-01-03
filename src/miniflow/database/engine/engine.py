@@ -15,6 +15,10 @@ from miniflow.core.exceptions import (
     DatabaseConfigurationError, DatabaseSessionError, DatabaseEngineError,
     DatabaseTransactionError
 )
+from miniflow.core.logger import get_logger, log_function_call
+
+# Logger instance
+logger = get_logger(__name__)
 
 # Type variable for generic return types
 T = TypeVar('T')
@@ -120,7 +124,7 @@ def with_retry(
                     result = func(*args, **kwargs)
                     
                     if attempt > 1:
-                        print(f"[INFO] {func.__name__} succeeded on attempt {attempt}/{max_attempts}")
+                        logger.info(f"{func.__name__} succeeded on attempt {attempt}/{max_attempts}")
                     return result
                     
                 except retry_exceptions as e:
@@ -133,24 +137,24 @@ def with_retry(
                     # Son denemede direkt raise et (unreachable code önleme)
                     if attempt >= max_attempts:
                         error_type = "deadlock" if is_deadlock else "database error"
-                        print(f"[ERROR] {func.__name__} failed after {max_attempts} attempts: {e}")
+                        logger.error(f"{func.__name__} failed after {max_attempts} attempts: {e}", exc_info=True)
                         raise
                     
                     # Retry yapılamayacak hata
                     if not should_retry:
-                        print(f"[ERROR] {func.__name__} failed with non-deadlock error: {e}")
+                        logger.error(f"{func.__name__} failed with non-deadlock error: {e}", exc_info=True)
                         raise
                     
                     # Yeniden denemeden önce bekleme
                     wait_time = delay * (backoff ** (attempt - 1))
                     error_type = "deadlock" if is_deadlock else "database error"
                     
-                    print(f"[WARNING] {func.__name__} {error_type} on attempt {attempt}, "
+                    logger.warning(f"{func.__name__} {error_type} on attempt {attempt}, "
                           f"retrying in {wait_time:.2f}s: {e}")
                     time.sleep(wait_time)
                     
                 except Exception as e:
-                    print(f"[ERROR] {func.__name__} failed with non-retryable error: {e}")
+                    logger.error(f"{func.__name__} failed with non-retryable error: {e}", exc_info=True)
                     raise
             
             # Bu satıra asla ulaşılmamalı (safety net)
@@ -287,26 +291,59 @@ class DatabaseEngine:
         
         # Get and validate connection string
         connection_string = config.get_connection_string()
+        
+        # GARANTİLİ STRING'E ÇEVİRME (ekstra güvenlik katmanı)
+        # Eğer bir şekilde integer veya başka bir tip gelirse, string'e çevir
         if not isinstance(connection_string, str):
-            # CRITICAL ERROR: Connection string is not a string!
-            # This should NEVER happen - indicates a bug in DatabaseConfig
-            error_details = {
-                "expected_type": "str",
-                "actual_type": type(connection_string).__name__,
-                "actual_value": repr(connection_string),
-                "config.db_type": config.db_type.value if hasattr(config, 'db_type') else "unknown",
-                "config.db_name": getattr(config, 'db_name', "unknown"),
-                "config.host": getattr(config, 'host', "unknown"),
-                "config.port": getattr(config, 'port', "unknown"),
-                "config.sqlite_path": getattr(config, 'sqlite_path', "unknown"),
-            }
-            print(f"[CRITICAL] DatabaseEngine.__init__: Connection string validation FAILED!")
-            print(f"[CRITICAL] Details: {error_details}")
-            error = DatabaseConfigurationError(
-                config_name={"connection_string_validation_failed": error_details}
+            # Önce string'e çevirmeyi dene (defensive programming)
+            try:
+                connection_string = str(connection_string) if connection_string is not None else ""
+            except Exception as e:
+                # String'e çevrilemezse hata ver
+                error_details = {
+                    "expected_type": "str",
+                    "actual_type": type(connection_string).__name__,
+                    "actual_value": repr(connection_string),
+                    "conversion_error": str(e),
+                    "config.db_type": config.db_type.value if hasattr(config, 'db_type') else "unknown",
+                    "config.db_name": getattr(config, 'db_name', "unknown"),
+                    "config.host": getattr(config, 'host', "unknown"),
+                    "config.port": getattr(config, 'port', "unknown"),
+                    "config.sqlite_path": getattr(config, 'sqlite_path', "unknown"),
+                }
+                logger.critical(f"DatabaseEngine.__init__: Connection string validation FAILED! Details: {error_details}")
+                error = DatabaseConfigurationError(
+                    config_name={"connection_string_validation_failed": error_details}
+                )
+                self._log_error("__init__", error)
+                raise error
+        
+        # Boş string kontrolü
+        if not connection_string:
+            error_msg = (
+                f"[DatabaseEngine.__init__] CRITICAL: Empty connection string!\n"
+                f"  Location: engine.py, line ~319\n"
+                f"  Method: __init__()\n"
+                f"  Expected: Non-empty connection string\n"
+                f"  Received: Empty string ''\n"
+                f"  Database Configuration:\n"
+                f"    - db_type: {config.db_type.value if hasattr(config, 'db_type') else 'unknown'}\n"
+                f"    - db_name: {getattr(config, 'db_name', 'unknown')}\n"
+                f"    - host: {getattr(config, 'host', 'unknown')}\n"
+                f"    - port: {getattr(config, 'port', 'unknown')}\n"
+                f"  Reason: config.get_connection_string() returned empty string\n"
+                f"  This indicates a configuration error.\n"
+                f"  Solution: Check your DatabaseConfig parameters\n"
+                f"  Example: DatabaseConfig(db_type=DatabaseType.POSTGRESQL, host='localhost', port=5432, db_name='mydb', username='user', password='pass')"
             )
-            self._log_error("__init__", error)
-            raise error
+            logger.critical(error_msg)
+            raise DatabaseConfigurationError(
+                config_name={
+                    "error": "Connection string is empty",
+                    "details": error_msg
+                }
+            )
+        
         self._connection_string: str = connection_string
         self._base_metadata = None
         
@@ -315,11 +352,11 @@ class DatabaseEngine:
         self._session_lock = threading.RLock()
         self._shutdown = False  # Shutdown flag for race condition prevention
         
-        print(f"[INFO] DatabaseEngine initialized for: {config.db_name}")
+        logger.info(f"DatabaseEngine initialized for: {config.db_name}")
 
     def _log_error(self, operation: str, error: Exception):
         """Hata durumlarını tutarlı şekilde loglamak için yardımcı."""
-        print(f"[ERROR] DatabaseEngine.{operation}: {error}")
+        logger.error(f"DatabaseEngine.{operation}: {error}", exc_info=True)
 
     def _validate_config(self, config: DatabaseConfig) -> DatabaseConfig:
         """Veritabanı konfigürasyonunu doğrula."""
@@ -358,7 +395,7 @@ class DatabaseEngine:
                 engine_kwargs.pop('pool_pre_ping', None)
 
             self._engine = create_engine(self._connection_string, **engine_kwargs)
-            print("[INFO] Database engine created successfully")
+            logger.info("Database engine created successfully")
 
         except Exception as e:
             error = DatabaseEngineError()
@@ -373,7 +410,7 @@ class DatabaseEngine:
             # Isolation level kaldırıldı - session_context'te uygulanacak
             
             self._session_factory = sessionmaker(**session_kwargs)
-            print("[INFO] Session factory created successfully")
+            logger.info("Session factory created successfully")
 
         except Exception as e:
             error = DatabaseSessionError()
@@ -402,7 +439,7 @@ class DatabaseEngine:
                         cleanup_errors.append(f"Failed to close session: {e}")
             
             if active_count > 0:
-                print(f"[WARNING] Closed {active_count} active sessions during cleanup")
+                logger.warning(f"Closed {active_count} active sessions during cleanup")
             
             self._active_sessions.clear()
         
@@ -420,9 +457,9 @@ class DatabaseEngine:
         # Shutdown flag'ini reset et (tekrar başlatma için)
         self._shutdown = False
         
-        # Temizlik hatalarını yazdır
+        # Temizlik hatalarını logla
         if cleanup_errors:
-            print(f"[ERROR] Cleanup errors: {'; '.join(cleanup_errors)}")
+            logger.error(f"Cleanup errors: {'; '.join(cleanup_errors)}")
     
     def _track_session(self, session: Session) -> None:
         """Temizlik için weak reference kullanarak oturumu takip et."""
@@ -439,6 +476,28 @@ class DatabaseEngine:
         with self._session_lock:
             session_ref = weakref.ref(session, cleanup_callback)
             self._active_sessions.add(session_ref)
+            # Session objesi üzerinde referansı sakla (untrack için)
+            session._miniflow_ref = session_ref
+    
+    def _untrack_session(self, session: Session) -> None:
+        """Session'ı aktif listeden çıkar.
+        
+        session.close() çağrıldıktan sonra weak reference listesinden
+        manuel olarak çıkarmak için kullanılır. Garbage collection
+        beklemeden session'ın pasif olduğunu işaretler.
+        
+        Args:
+            session: Çıkarılacak session
+        """
+        try:
+            with self._session_lock:
+                # Session'a kaydedilmiş referansı bul
+                if hasattr(session, '_miniflow_ref'):
+                    self._active_sessions.discard(session._miniflow_ref)
+                    delattr(session, '_miniflow_ref')
+        except Exception as e:
+            # Session zaten GC olmuş veya lock silinmiş olabilir
+            pass
     
     def get_active_session_count(self) -> int:
         """Şu anda aktif olan oturum sayısını döndürür.
@@ -483,6 +542,7 @@ class DatabaseEngine:
             }
             return len(self._active_sessions)
 
+    @log_function_call
     def start(self) -> None:
         """Veritabanı motorunu başlatır ve bağlantı havuzunu oluşturur.
         
@@ -528,13 +588,13 @@ class DatabaseEngine:
             - :meth:`session_context`: Session oluşturur
         """
         if self._engine is not None:
-            print("[WARNING] Database engine already started")
+            logger.warning("Database engine already started")
             return
             
-        print("[INFO] Starting database engine...")
+        logger.info("Starting database engine...")
         self._build_engine()
         self._build_session_factory()
-        print("[INFO] Database engine started successfully")
+        logger.info("Database engine started successfully")
 
     def stop(self) -> None:
         """Veritabanı motorunu durdurur ve tüm kaynakları temizler.
@@ -594,13 +654,13 @@ class DatabaseEngine:
             - :meth:`_cleanup_resources`: Kaynak temizleme implementasyonu
         """
         if self._engine:
-            print("[INFO] Stopping database engine...")
+            logger.info("Stopping database engine...")
             active_sessions = self.get_active_session_count()
             if active_sessions > 0:
-                print(f"[WARNING] Stopping with {active_sessions} active sessions")
+                logger.warning(f"Stopping with {active_sessions} active sessions")
             
             self._cleanup_resources()
-            print("[INFO] Database engine stopped successfully")
+            logger.info("Database engine stopped successfully")
     
     def create_tables(self, base_metadata) -> None:
         """Veritabanı tablolarını oluşturur.
@@ -661,10 +721,10 @@ class DatabaseEngine:
             raise error
         
         try:
-            print("[INFO] Creating database tables...")
+            logger.info("Creating database tables...")
             base_metadata.create_all(self._engine)
             self._base_metadata = base_metadata
-            print("[INFO] Database tables created successfully")
+            logger.info("Database tables created successfully")
         except Exception as e:
             error = DatabaseEngineError()
             self._log_error("create_tables", error)
@@ -743,12 +803,12 @@ class DatabaseEngine:
             raise error
         
         try:
-            print("[WARNING] Dropping all database tables...")
+            logger.warning("Dropping all database tables...")
             if not base_metadata:
                 self._base_metadata.drop_all(self._engine)
             else:
                 base_metadata.drop_all(self._engine)
-            print("[INFO] Database tables dropped successfully")
+            logger.info("Database tables dropped successfully")
         except Exception as e:
             error = DatabaseEngineError()
             self._log_error("drop_tables", error)
@@ -875,6 +935,23 @@ class DatabaseEngine:
         try:
             session = self._session_factory()
             self._track_session(session)
+            
+            # Wrap session.close() to auto-untrack
+            original_close = session.close
+            engine_ref = self  # Capture engine reference
+            
+            def tracked_close():
+                """Wrapped close that untrucks session before closing."""
+                try:
+                    # Untrack before close (while session is still accessible)
+                    engine_ref._untrack_session(session)
+                finally:
+                    # Always call original close
+                    original_close()
+            
+            # Replace close method with tracked version
+            session.close = tracked_close
+            
             return session
         
         except Exception as e:
@@ -883,6 +960,7 @@ class DatabaseEngine:
             raise error
 
     @contextmanager
+    @log_function_call
     def session_context(
         self,
         *,
@@ -1034,17 +1112,46 @@ class DatabaseEngine:
                 f"Details: {error_details}\n"
                 f"This indicates memory corruption or a thread safety issue!"
             )
-            print(f"[CRITICAL] DatabaseEngine.session_context: {error_msg}")
+            logger.critical(f"DatabaseEngine.session_context: {error_msg}")
             raise DatabaseEngineError()
         
         # Timeout validation
         if timeout is not None:
             if not isinstance(timeout, (int, float)):
-                raise ValueError(f"Timeout must be a number, got {type(timeout).__name__}")
-            if not (0 < timeout <= 3600):
-                raise ValueError(
-                    f"Timeout must be between 0 and 3600 seconds (1 hour), got {timeout}"
+                error_msg = (
+                    f"[DatabaseEngine.session_context] Timeout validation failed!\n"
+                    f"  Location: engine.py, line ~1064\n"
+                    f"  Method: session_context()\n"
+                    f"  Parameter: timeout\n"
+                    f"  Expected type: int or float (seconds)\n"
+                    f"  Received type: {type(timeout).__name__}\n"
+                    f"  Received value: {repr(timeout)}\n"
+                    f"  Reason: Timeout must be a numeric value (seconds)\n"
+                    f"  Solution: Provide timeout as a number\n"
+                    f"  Examples:\n"
+                    f"    - session_context(timeout=30)      # 30 seconds\n"
+                    f"    - session_context(timeout=300.5)   # 300.5 seconds\n"
+                    f"    - session_context(timeout=60*5)    # 5 minutes"
                 )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+            if not (0 < timeout <= 3600):
+                error_msg = (
+                    f"[DatabaseEngine.session_context] Timeout validation failed!\n"
+                    f"  Location: engine.py, line ~1066\n"
+                    f"  Method: session_context()\n"
+                    f"  Parameter: timeout\n"
+                    f"  Expected range: 0 < timeout <= 3600 (1 hour max)\n"
+                    f"  Received value: {timeout}\n"
+                    f"  Reason: Timeout must be positive and not exceed 1 hour\n"
+                    f"  Solution: Provide a timeout between 0 and 3600 seconds\n"
+                    f"  Examples:\n"
+                    f"    - session_context(timeout=30)      # 30 seconds\n"
+                    f"    - session_context(timeout=300)     # 5 minutes\n"
+                    f"    - session_context(timeout=3600)    # 1 hour (max)"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
         
         session = None
         connection = None  # Connection tracking için (isolation level cleanup)
@@ -1065,28 +1172,19 @@ class DatabaseEngine:
             # Timeout ayarla (PostgreSQL/MySQL)
             if timeout:
                 try:
-                    # Validate that _connection_string is actually a string
-                    if not isinstance(self._connection_string, str):
-                        # BUG DETECTED: This is the source of the "argument of type 'int' is not iterable" error!
-                        error_details = {
-                            "location": "session_context > timeout block",
-                            "expected_type": "str",
-                            "actual_type": type(self._connection_string).__name__,
-                            "actual_value": repr(self._connection_string),
-                            "timeout_value": timeout,
-                            "engine_id": id(self),
-                            "config.db_type": self.config.db_type.value if hasattr(self.config, 'db_type') else "unknown",
-                        }
-                        print(f"[ERROR] BUG: _connection_string is {type(self._connection_string).__name__}, not str!")
-                        print(f"[ERROR] This is the root cause of 'argument of type int is not iterable' error")
-                        print(f"[ERROR] Details: {error_details}")
-                        print(f"[ERROR] Skipping timeout setting to prevent crash")
-                    elif 'postgresql' in self._connection_string:
+                    # FIXED: Use config.db_type instead of checking _connection_string
+                    # This prevents "argument of type 'int' is not iterable" error
+                    # because we don't rely on _connection_string being a string
+                    from miniflow.database.config.database_type import DatabaseType
+                    
+                    if self.config.db_type == DatabaseType.POSTGRESQL:
                         session.execute(text(f"SET statement_timeout = {int(timeout * 1000)}"))
-                    elif 'mysql' in self._connection_string:
+                    elif self.config.db_type == DatabaseType.MYSQL:
                         session.execute(text(f"SET SESSION max_execution_time = {int(timeout * 1000)}"))
+                    # SQLite doesn't support query timeout, so we skip it
+                    
                 except Exception as e:
-                    print(f"[WARNING] Failed to set query timeout: {e}")
+                    logger.warning(f"Failed to set query timeout: {type(e).__name__}: {e}")
                 
             self._track_session(session)
             
@@ -1110,7 +1208,7 @@ class DatabaseEngine:
                 try:
                     session.rollback()
                 except Exception as rollback_error:
-                    print(f"[ERROR] Rollback failed: {rollback_error}")
+                    logger.error(f"Rollback failed: {rollback_error}", exc_info=True)
             
             # Veritabanı hatası ise bağlamla yeniden fırlat
             if isinstance(e, (SQLAlchemyError, OperationalError, DBAPIError)):
@@ -1128,15 +1226,17 @@ class DatabaseEngine:
             if session:
                 try:
                     session.close()
+                    # Manuel olarak untrack et (GC beklemeden)
+                    self._untrack_session(session)
                 except Exception as e:
-                    print(f"[ERROR] Failed to close session: {e}")
+                    logger.error(f"Failed to close session: {e}", exc_info=True)
             
             # Isolation level ile oluşturulan connection'ı kapat (memory leak önleme)
             if connection is not None:
                 try:
                     connection.close()
                 except Exception as e:
-                    print(f"[ERROR] Failed to close isolation level connection: {e}")
+                    logger.error(f"Failed to close isolation level connection: {e}", exc_info=True)
 
     def health_check(self) -> dict:
         """Veritabanı bağlantısı ve engine durumu için sağlık kontrolü yapar.
@@ -1265,7 +1365,6 @@ class DatabaseEngine:
                     isolation_level="AUTOCOMMIT"
                 ) as connection:
                     connection.execute(text("SELECT 1"))
-                    # connection.close() gereksiz: context manager zaten kapatıyor
                 result['connection_test'] = True
                 result['status'] = 'healthy'
             except Exception as e:
@@ -1276,7 +1375,7 @@ class DatabaseEngine:
         except Exception as e:
             result['status'] = 'error'
             result['error'] = str(e)
-            print(f"[ERROR] Health check failed: {e}")
+            logger.error(f"Health check failed: {e}", exc_info=True)
         
         return result
     
@@ -1335,8 +1434,8 @@ class DatabaseEngine:
             - Tracking listesi temizlenir (_active_sessions.clear())
             
         Comparison with stop():
-            - close_all_sessions(): Sadece session'ları kapatır (rollback yok)
-            - stop(): Session'ları kapatır + rollback + engine dispose
+            - close_all_sessions(): Session'ları kapatır + aktif transaction'ları rollback eder
+            - stop(): Session'ları kapatır + rollback + engine dispose + graceful shutdown
             
         When to Use:
             - Emergency cleanup
@@ -1353,7 +1452,7 @@ class DatabaseEngine:
             - :meth:`_track_session`: Session tracking
         """
         if not self.is_alive:
-            print("[WARNING] Cannot close sessions: Engine not started")
+            logger.warning("Cannot close sessions: Engine not started")
             return 0
         
         count = 0
@@ -1362,11 +1461,14 @@ class DatabaseEngine:
                 session = session_ref()
                 if session is not None:
                     try:
+                        # Aktif transaction varsa rollback yap (data loss önleme)
+                        if session.is_active:
+                            session.rollback()
                         session.close()
                         count += 1
                     except Exception as e:
-                        print(f"[WARNING] Error closing session: {e}")
+                        logger.warning(f"Error closing session: {e}")
             self._active_sessions.clear()
         
-        print(f"[INFO] Closed {count} active sessions")
+        logger.info(f"Closed {count} active sessions")
         return count

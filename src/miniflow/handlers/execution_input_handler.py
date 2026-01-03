@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 
 from ..utils import ConfigurationHandler
 from ..services import SchedulerForInputHandler
-from ..core.logger import get_logger
+from ..core.logger import get_logger, log_function_call
 
 
 logger = get_logger(__name__)

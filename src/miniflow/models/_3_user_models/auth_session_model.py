@@ -20,13 +20,13 @@ class AuthSession(BaseModel):
     user_id = Column(String(20), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
 
     # Access Token - API erişimi için kısa ömürlü token
-    access_token_jti = Column(String(100), nullable=False, unique=True, index=True)
+    access_token_jti = Column(String(100), nullable=False, index=True)  # unique=True kaldırıldı - UniqueConstraint zaten var
     access_token_created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     access_token_expires_at = Column(DateTime, nullable=False, index=True)
     access_token_last_used_at = Column(DateTime, nullable=True)
     
     # Refresh Token - Yeni access token'lar almak için uzun ömürlü token
-    refresh_token_jti = Column(String(100), nullable=False, unique=True, index=True)
+    refresh_token_jti = Column(String(100), nullable=False, index=True)  # unique=True kaldırıldı - UniqueConstraint zaten var
     refresh_token_created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     refresh_token_expires_at = Column(DateTime, nullable=False, index=True)
     refresh_token_last_used_at = Column(DateTime, nullable=True)

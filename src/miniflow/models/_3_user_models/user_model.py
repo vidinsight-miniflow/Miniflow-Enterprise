@@ -33,13 +33,13 @@ class User(BaseModel):
     )
 
     # ====================================================================================================== TABLO KOLONLARI ==
-    username = Column(String(50), nullable=False, unique=True, index=True,
+    username = Column(String(50), nullable=False, index=True,  # unique=True kaldırıldı - UniqueConstraint zaten var
         comment="Kullanıcı adı")
     name = Column(String(100), nullable=True,
         comment="Ad")
     surname = Column(String(100), nullable=True,
         comment="Soyad")
-    email = Column(String(100), nullable=False, unique=True, index=True,
+    email = Column(String(100), nullable=False, index=True,  # unique=True kaldırıldı - UniqueConstraint zaten var
         comment="E-posta adresi")
     hashed_password = Column(String(255), nullable=True,
         comment="Hashlenmiş şifre")    

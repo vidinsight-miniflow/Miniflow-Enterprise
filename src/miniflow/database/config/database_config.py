@@ -1,12 +1,16 @@
 from sqlalchemy.pool import QueuePool, NullPool, StaticPool
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Type
 from sqlalchemy.engine import URL
 
 # -- Imports from local modules -- #
 from .database_type import DatabaseType
 from .engine_config import EngineConfig
 from miniflow.core.exceptions import InvalidInputError, DatabaseConfigurationError
+from miniflow.core.logger import get_logger
+
+# Logger instance
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -19,7 +23,7 @@ class DatabaseConfig:
     """
 
     # --------------------------------------------------------------
-    # CONNECTTION PARAMETERS
+    # CONNECTION PARAMETERS
     # --------------------------------------------------------------
     db_name: str = "miniflow"
     # Veritabanı adı (MySQL/PostgreSQL için). SQLite'ta genelde dosya yolu kullanılır.
@@ -41,7 +45,7 @@ class DatabaseConfig:
 
 
     # --------------------------------------------------------------
-    # CONNECTTION PARAMETERS
+    # SQLITE PARAMETERS
     # --------------------------------------------------------------
     sqlite_path: str = "./miniflow.db"
     # SQLite için dosya yolu. ":memory:" kullanılarak bellek içi DB çalıştırılabilir.
@@ -95,38 +99,153 @@ class DatabaseConfig:
         if self.port is not None:
             try:
                 self.port = int(self.port)
-            except (TypeError, ValueError):
-                raise InvalidInputError(field_name="port")
+            except (TypeError, ValueError) as e:
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Port validation failed!\n"
+                    f"  Location: database_config.py, line ~97\n"
+                    f"  Field: port\n"
+                    f"  Expected type: int\n"
+                    f"  Received type: {type(self.port).__name__}\n"
+                    f"  Received value: {repr(self.port)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Conversion error: {type(e).__name__}: {e}\n"
+                    f"  Solution: Provide a valid integer port number (e.g., 5432 for PostgreSQL, 3306 for MySQL)\n"
+                    f"  Example: DatabaseConfig(db_type=DatabaseType.POSTGRESQL, port=5432, ...)"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="port", details=error_msg)
         
         # Credentials validation for DBs that require them (SQLite hariç)
         if self.db_type.requires_credentials():
             if not self.username:
-                raise InvalidInputError(field_name="username")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Username validation failed!\n"
+                    f"  Location: database_config.py, line ~103\n"
+                    f"  Field: username\n"
+                    f"  Expected: Non-empty string\n"
+                    f"  Received: {repr(self.username)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: {self.db_type.value} requires username for authentication\n"
+                    f"  Solution: Provide a valid username\n"
+                    f"  Example: DatabaseConfig(db_type=DatabaseType.{self.db_type.name}, username='db_user', ...)"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="username", details=error_msg)
             if self.password is None:
-                raise InvalidInputError(field_name="password")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Password validation failed!\n"
+                    f"  Location: database_config.py, line ~106\n"
+                    f"  Field: password\n"
+                    f"  Expected: Non-None value (can be empty string)\n"
+                    f"  Received: None\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: {self.db_type.value} requires password for authentication\n"
+                    f"  Solution: Provide a password (use empty string '' if no password)\n"
+                    f"  Example: DatabaseConfig(db_type=DatabaseType.{self.db_type.name}, password='secret', ...)"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="password", details=error_msg)
 
         # Non-SQLite validations for host, db_name, port
         if self.db_type != DatabaseType.SQLITE:
             if not self.host:
-                raise InvalidInputError(field_name="host")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Host validation failed!\n"
+                    f"  Location: database_config.py, line ~110\n"
+                    f"  Field: host\n"
+                    f"  Expected: Non-empty string (hostname or IP address)\n"
+                    f"  Received: {repr(self.host)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: {self.db_type.value} requires a host to connect to\n"
+                    f"  Solution: Provide a valid hostname or IP address\n"
+                    f"  Example: DatabaseConfig(host='localhost') or DatabaseConfig(host='192.168.1.100')"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="host", details=error_msg)
             if not self.db_name:
-                raise InvalidInputError(field_name="db_name")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Database name validation failed!\n"
+                    f"  Location: database_config.py, line ~112\n"
+                    f"  Field: db_name\n"
+                    f"  Expected: Non-empty string\n"
+                    f"  Received: {repr(self.db_name)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: {self.db_type.value} requires a database name to connect to\n"
+                    f"  Solution: Provide a valid database name\n"
+                    f"  Example: DatabaseConfig(db_name='myapp_db')"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="db_name", details=error_msg)
             if self.port is None or int(self.port) <= 0:
-                raise InvalidInputError(field_name="port")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Port validation failed!\n"
+                    f"  Location: database_config.py, line ~114\n"
+                    f"  Field: port\n"
+                    f"  Expected: Positive integer (1-65535)\n"
+                    f"  Received: {repr(self.port)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: Port must be a valid port number\n"
+                    f"  Solution: Use default port ({self.db_type.default_port()}) or provide a valid port\n"
+                    f"  Example: DatabaseConfig(port={self.db_type.default_port()})"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="port", details=error_msg)
         
         # SQLite-specific validations
         if self.db_type == DatabaseType.SQLITE:
             if not self.sqlite_path or not self.sqlite_path.strip():
-                raise InvalidInputError(field_name="sqlite_path")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] SQLite path validation failed!\n"
+                    f"  Location: database_config.py, line ~119\n"
+                    f"  Field: sqlite_path\n"
+                    f"  Expected: Non-empty file path or ':memory:'\n"
+                    f"  Received: {repr(self.sqlite_path)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: SQLite requires a file path or ':memory:' for in-memory database\n"
+                    f"  Solution: Provide a valid file path\n"
+                    f"  Examples:\n"
+                    f"    - DatabaseConfig(sqlite_path='./myapp.db')  # File-based\n"
+                    f"    - DatabaseConfig(sqlite_path=':memory:')    # In-memory (testing)"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="sqlite_path", details=error_msg)
         
         # PostgreSQL-specific validations
         if self.db_type == DatabaseType.POSTGRESQL and self.statement_timeout_ms is not None:
             try:
                 timeout_ms = int(self.statement_timeout_ms)
-            except (TypeError, ValueError):
-                raise InvalidInputError(field_name="statement_timeout_ms")
+            except (TypeError, ValueError) as e:
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Statement timeout validation failed!\n"
+                    f"  Location: database_config.py, line ~125\n"
+                    f"  Field: statement_timeout_ms\n"
+                    f"  Expected type: int (milliseconds)\n"
+                    f"  Received type: {type(self.statement_timeout_ms).__name__}\n"
+                    f"  Received value: {repr(self.statement_timeout_ms)}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Conversion error: {type(e).__name__}: {e}\n"
+                    f"  Reason: PostgreSQL statement_timeout must be an integer (milliseconds)\n"
+                    f"  Solution: Provide timeout in milliseconds\n"
+                    f"  Examples:\n"
+                    f"    - statement_timeout_ms=30000  # 30 seconds\n"
+                    f"    - statement_timeout_ms=60000  # 1 minute"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="statement_timeout_ms", details=error_msg)
             if timeout_ms < 0:
-                raise InvalidInputError(field_name="statement_timeout_ms")
+                error_msg = (
+                    f"[DatabaseConfig.__post_init__] Statement timeout validation failed!\n"
+                    f"  Location: database_config.py, line ~128\n"
+                    f"  Field: statement_timeout_ms\n"
+                    f"  Expected: Non-negative integer\n"
+                    f"  Received: {timeout_ms}\n"
+                    f"  Database type: {self.db_type.value}\n"
+                    f"  Reason: Timeout cannot be negative\n"
+                    f"  Solution: Provide a non-negative timeout value\n"
+                    f"  Example: statement_timeout_ms=30000  # 30 seconds"
+                )
+                logger.error(error_msg)
+                raise InvalidInputError(field_name="statement_timeout_ms", details=error_msg)
             self.statement_timeout_ms = timeout_ms
             
     def __repr__(self) -> str:
@@ -152,6 +271,23 @@ class DatabaseConfig:
             else:
                 # normalize path — create_engine string olarak kabul edecektir
                 result = f"sqlite:///{self.sqlite_path}"
+            
+            # SQLite için garantili string dönüşümü ve validation
+            if not isinstance(result, str):
+                result = str(result) if result is not None else ""
+            
+            if not result:
+                raise DatabaseConfigurationError(
+                    config_name={
+                        "error": "get_connection_string returned empty string for SQLite",
+                        "details": {
+                            "db_type": self.db_type.value,
+                            "sqlite_path": self.sqlite_path,
+                        }
+                    }
+                )
+            
+            return result
         else:
             # PostgreSQL ve MySQL gibi diğer türler için URL.create kullanımı (güvenli kaçış sağlar)
             drivername = self.db_type.driver_name
@@ -167,7 +303,8 @@ class DatabaseConfig:
                     # Validation __post_init__'te yapıldı, direkt kullan
                     query_params["options"] = f"-c statement_timeout={self.statement_timeout_ms}ms"
 
-            result = str(URL.create(
+            # FIX: result ataması if bloğunun dışında - hem PostgreSQL hem MySQL için çalışır
+            url_result = URL.create(
                 drivername=drivername,
                 username=self.username,
                 password=self.password,
@@ -175,35 +312,86 @@ class DatabaseConfig:
                 port=self.port,
                 database=self.db_name,
                 query=query_params or None
-            ))
-        
-        # CRITICAL VALIDATION: Ensure we're returning a string!
-        if not isinstance(result, str):
-            error_details = {
-                "db_type": self.db_type.value,
-                "db_name": self.db_name,
-                "host": self.host,
-                "port": self.port,
-                "sqlite_path": getattr(self, 'sqlite_path', None),
-                "result_type": type(result).__name__,
-                "result_value": repr(result),
-            }
-            raise DatabaseConfigurationError(
-                config_name={
-                    "error": "get_connection_string returned non-string value",
-                    "details": error_details
-                }
             )
-        
-        return result
+            # GARANTİLİ STRING'E ÇEVİRME
+            result = str(url_result) if url_result is not None else ""
+            
+            # GARANTİLİ STRING'E ÇEVİRME (ekstra güvenlik katmanı)
+            # Eğer bir şekilde integer veya başka bir tip gelirse, string'e çevir
+            if not isinstance(result, str):
+                result = str(result) if result is not None else ""
+            
+            # CRITICAL VALIDATION: Ensure we're returning a string!
+            if not isinstance(result, str):
+                error_msg = (
+                    f"[DatabaseConfig.get_connection_string] CRITICAL: Non-string connection string!\n"
+                    f"  Location: database_config.py, line ~206\n"
+                    f"  Method: get_connection_string()\n"
+                    f"  Expected type: str\n"
+                    f"  Received type: {type(result).__name__}\n"
+                    f"  Received value: {repr(result)}\n"
+                    f"  Database Configuration:\n"
+                    f"    - db_type: {self.db_type.value}\n"
+                    f"    - db_name: {self.db_name}\n"
+                    f"    - host: {self.host}\n"
+                    f"    - port: {self.port}\n"
+                    f"    - sqlite_path: {getattr(self, 'sqlite_path', None)}\n"
+                    f"  Reason: URL.create() or sqlite path generation returned unexpected type\n"
+                    f"  This is a BUG! Connection string must always be a string.\n"
+                    f"  Solution: This should never happen. Please report this bug with the above details.\n"
+                    f"  Workaround: Check your database configuration parameters."
+                )
+                logger.critical(error_msg)
+                raise DatabaseConfigurationError(
+                    config_name={
+                        "error": "get_connection_string returned non-string value",
+                        "details": error_msg
+                    }
+                )
+            
+            # Boş string kontrolü
+            if not result:
+                error_msg = (
+                    f"[DatabaseConfig.get_connection_string] CRITICAL: Empty connection string!\n"
+                    f"  Location: database_config.py, line ~224\n"
+                    f"  Method: get_connection_string()\n"
+                    f"  Expected: Non-empty connection string\n"
+                    f"  Received: Empty string ''\n"
+                    f"  Database Configuration:\n"
+                    f"    - db_type: {self.db_type.value}\n"
+                    f"    - db_name: {self.db_name}\n"
+                    f"    - host: {self.host}\n"
+                    f"    - port: {self.port}\n"
+                    f"  Reason: Connection string generation failed\n"
+                    f"  Possible causes:\n"
+                    f"    1. Invalid database configuration parameters\n"
+                    f"    2. URL.create() returned empty string\n"
+                    f"    3. SQLite path is invalid\n"
+                    f"  Solution: Check your database configuration\n"
+                    f"  Examples:\n"
+                    f"    - PostgreSQL: DatabaseConfig(db_type=DatabaseType.POSTGRESQL, host='localhost', port=5432, db_name='mydb', username='user', password='pass')\n"
+                    f"    - SQLite: DatabaseConfig(db_type=DatabaseType.SQLITE, sqlite_path='./mydb.db')"
+                )
+                logger.critical(error_msg)
+                raise DatabaseConfigurationError(
+                    config_name={
+                        "error": "get_connection_string returned empty string",
+                        "details": error_msg
+                    }
+                )
+            
+            return result
 
 
-    def get_pool_class(self):
+    def get_pool_class(self) -> Type:
         """Veritabanı tipine göre uygun pool sınıfını döndürür.
         
         SQLite :memory: için StaticPool kullanılır (tek connection paylaşılır).
         SQLite file-based için NullPool kullanılır (connection pooling yok).
         Diğer veritabanları için QueuePool kullanılır.
+        
+        Returns:
+            Type: SQLAlchemy pool class (QueuePool, NullPool, veya StaticPool)
         """
         if self.db_type == DatabaseType.SQLITE:
             # :memory: database için StaticPool kullan (aynı DB instance paylaşılır)
