@@ -12,6 +12,8 @@ from ..schemas import (
 )
 
 from miniflow.utils import EnvironmentHandler
+from miniflow.utils.handlers.configuration_handler import ConfigurationHandler
+
 
 
 # ---------------------------------------------------------
@@ -173,6 +175,64 @@ def format_exception_log(request: Request, exception: Exception, error_detail: O
 # Exception Handlers
 # ---------------------------------------------------------
 
+def _add_cors_headers(request: Request, response: JSONResponse) -> None:
+    """CORS header'larını response'a ekle."""
+    origin = request.headers.get("Origin")
+    if not origin:
+        return
+    
+    # Config'den allowed origins'i al
+    try:
+        ConfigurationHandler.ensure_loaded()
+        allowed_origins = ConfigurationHandler.get_list("Server", "allowed_origins", "*")
+        
+        # Origin kontrolü - daha esnek kontrol
+        origin_allowed = False
+        
+        if isinstance(allowed_origins, list):
+            # Liste varsa, origin'i kontrol et
+            if "*" in allowed_origins or len(allowed_origins) == 1 and allowed_origins[0] == "*":
+                origin_allowed = True
+            elif origin in allowed_origins:
+                origin_allowed = True
+        elif isinstance(allowed_origins, str):
+            if allowed_origins == "*" or origin == allowed_origins:
+                origin_allowed = True
+        else:
+            # Default: tüm origin'lere izin ver
+            origin_allowed = True
+        
+        if not origin_allowed:
+            # Origin izinli değil, header ekleme
+            return
+        
+        # CORS header'larını ekle
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-API-KEY, X-Request-ID, X-Correlation-ID, Accept, Origin, X-Requested-With"
+        response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, X-Response-Time, X-Correlation-ID"
+        response.headers["Vary"] = "Origin"
+        
+        # OPTIONS request için ek header'lar
+        if request.method == "OPTIONS":
+            requested_method = request.headers.get("Access-Control-Request-Method")
+            requested_headers = request.headers.get("Access-Control-Request-Headers")
+            
+            if requested_method:
+                response.headers["Access-Control-Allow-Methods"] = requested_method
+            if requested_headers:
+                response.headers["Access-Control-Allow-Headers"] = requested_headers
+            
+            response.headers["Access-Control-Max-Age"] = "86400"  # 24 saat
+    except Exception as e:
+        # Config yüklenemezse, güvenli bir şekilde devam et
+        # Development'ta log'la
+        if not is_production:
+            print(f"Warning: Could not add CORS headers: {e}")
+        pass
+
+
 async def app_exception_handler(request: Request, exception: AppException) -> JSONResponse:
     """Handles custom AppException."""
     http_status = get_http_status_code(exception.error_code)
@@ -188,7 +248,9 @@ async def app_exception_handler(request: Request, exception: AppException) -> JS
         code=http_status,
     )
 
-    return JSONResponse(status_code=http_status, content=response_data)
+    response = JSONResponse(status_code=http_status, content=response_data)
+    _add_cors_headers(request, response)
+    return response
 
 
 async def validation_exception_handler(request: Request, exception: RequestValidationError) -> JSONResponse:
@@ -214,7 +276,9 @@ async def validation_exception_handler(request: Request, exception: RequestValid
         code=status.HTTP_422_UNPROCESSABLE_ENTITY,
     )
 
-    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=response_data)
+    response = JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=response_data)
+    _add_cors_headers(request, response)
+    return response
 
 
 async def http_exception_handler(request: Request, exception: StarletteHTTPException) -> JSONResponse:
@@ -231,7 +295,9 @@ async def http_exception_handler(request: Request, exception: StarletteHTTPExcep
         code=exception.status_code,
     )
 
-    return JSONResponse(status_code=exception.status_code, content=response_data)
+    response = JSONResponse(status_code=exception.status_code, content=response_data)
+    _add_cors_headers(request, response)
+    return response
 
 
 async def generic_exception_handler(request: Request, exception: Exception) -> JSONResponse:
@@ -261,10 +327,12 @@ async def generic_exception_handler(request: Request, exception: Exception) -> J
         code=status.HTTP_500_INTERNAL_SERVER_ERROR,
     )
 
-    return JSONResponse(
+    response = JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=response_data
     )
+    _add_cors_headers(request, response)
+    return response
 
 
 def register_exception_handlers(app) -> None:

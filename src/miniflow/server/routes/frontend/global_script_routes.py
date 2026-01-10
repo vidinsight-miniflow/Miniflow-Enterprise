@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Depends, Path, Query
 
 from miniflow.server.dependencies import (
     get_global_script_service,
+    authenticate_user,
     authenticate_admin,
 )
 from miniflow.server.dependencies.auth import AuthenticatedUser
@@ -35,12 +36,12 @@ async def create_global_script(
     request: Request,
     script_data: CreateGlobalScriptRequest = ...,
     service = Depends(get_global_script_service),
-    current_user: AuthenticatedUser = Depends(authenticate_admin),
+    current_user: AuthenticatedUser = Depends(authenticate_user),
 ) -> dict:
     """
     Create a new global script.
     
-    Requires: Admin authentication
+    Requires: User authentication
     Note: Script content cannot be changed after creation. Scripts are available to all workspaces.
     """
     result = service.create_script(

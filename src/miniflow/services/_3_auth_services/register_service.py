@@ -189,7 +189,7 @@ class RegisterService:
             )
         
         # Doğrulama emaili gönder
-        cls._send_verification_email(user.email, user.name, user.email_verification_token)
+        cls._send_verification_email(user.email, user.name, f"https://qbitra.vidinsight.com.tr/verify-email?token={user.email_verification_token}")
         
         logger.info(f"User registration successful: user_id={user.id}, username={username}, email={email}, ip: {ip_address}")
         
@@ -312,7 +312,7 @@ class RegisterService:
         user.generate_email_verification_token()
         
         # Doğrulama emaili gönder
-        cls._send_verification_email(user.email, user.name, user.email_verification_token)
+        cls._send_verification_email(user.email, user.name, f"https://qbitra.vidinsight.com.tr/verify-email?token={user.email_verification_token}")
         
         return {
             "email": email,

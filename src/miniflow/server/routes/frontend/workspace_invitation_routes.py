@@ -14,6 +14,7 @@ from .schemas.workspace_invitation_schemas import (
     UserPendingInvitationsResponse,
     WorkspaceInvitationsResponse,
     InviteUserRequest,
+    InviteUserByEmailRequest,
     InviteUserResponse,
     AcceptInvitationResponse,
     DeclineInvitationResponse,
@@ -105,6 +106,37 @@ async def invite_user(
         workspace_id=workspace_id,
         invited_by=current_user["user_id"],
         invitee_id=invitation_data.invitee_id,
+        role_id=invitation_data.role_id,
+        message=invitation_data.message
+    )
+    
+    response_data = InviteUserResponse(**result)
+    return create_success_response(
+        request,
+        data=response_data.model_dump(),
+        message="Invitation sent successfully."
+    )
+
+
+@router.post("/{workspace_id}/invitations/by-email", response_model_exclude_none=True)
+async def invite_user_by_email(
+    request: Request,
+    workspace_id: str = Path(..., description="Workspace ID"),
+    invitation_data: InviteUserByEmailRequest = ...,
+    service = Depends(get_workspace_invitation_service),
+    current_user: AuthenticatedUser = Depends(authenticate_user),
+    _: str = Depends(require_workspace_access),
+) -> dict:
+    """
+    Invite user to workspace by email.
+    
+    Requires: Workspace access (Owner/Admin can invite)
+    Note: User must be registered in the system first. Member limit is checked automatically.
+    """
+    result = service.invite_user_by_email(
+        workspace_id=workspace_id,
+        invited_by=current_user["user_id"],
+        email=invitation_data.email,
         role_id=invitation_data.role_id,
         message=invitation_data.message
     )

@@ -39,6 +39,26 @@ router = APIRouter(prefix="/workspaces", tags=["Workspace Plans"])
 # PLAN INFO ENDPOINTS
 # ============================================================================
 
+@router.get("/{workspace_id}/plan", response_model_exclude_none=True)
+async def get_workspace_current_plan(
+    request: Request,
+    workspace_id: str = Path(..., description="Workspace ID"),
+    service = Depends(get_workspace_plan_management_service),
+    _: str = Depends(require_workspace_access),
+) -> dict:
+    """
+    Get workspace current plan and usage.
+    
+    Requires: Workspace access
+    """
+    result = service.get_workspace_current_plan(workspace_id=workspace_id)
+    
+    response_data = WorkspaceCurrentPlanResponse(**result)
+    return create_success_response(
+        request,
+        data=response_data.model_dump()
+    )
+
 @router.get("/plans", response_model_exclude_none=True)
 async def get_available_plans(
     request: Request,
@@ -78,25 +98,7 @@ async def get_plan_details(
     )
 
 
-@router.get("/{workspace_id}/plan", response_model_exclude_none=True)
-async def get_workspace_current_plan(
-    request: Request,
-    workspace_id: str = Path(..., description="Workspace ID"),
-    service = Depends(get_workspace_plan_management_service),
-    _: str = Depends(require_workspace_access),
-) -> dict:
-    """
-    Get workspace current plan and usage.
-    
-    Requires: Workspace access
-    """
-    result = service.get_workspace_current_plan(workspace_id=workspace_id)
-    
-    response_data = WorkspaceCurrentPlanResponse(**result)
-    return create_success_response(
-        request,
-        data=response_data.model_dump()
-    )
+
 
 
 # ============================================================================

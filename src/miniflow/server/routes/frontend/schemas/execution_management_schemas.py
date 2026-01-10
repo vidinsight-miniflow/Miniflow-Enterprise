@@ -13,6 +13,11 @@ class StartExecutionByWorkflowRequest(BaseModel):
     input_data: Optional[Dict[str, Any]] = Field(None, description="Test input data")
 
 
+class StartExecutionByTriggerRequest(BaseModel):
+    """Request schema for starting execution by trigger."""
+    trigger_data: Dict[str, Any] = Field(..., description="Trigger data (must match trigger's input_mapping)")
+
+
 class StartExecutionResponse(BaseModel):
     """Response schema for starting execution."""
     id: str = Field(..., description="Execution ID")

@@ -467,21 +467,47 @@ class MiniFlow:
         from fastapi.middleware.cors import CORSMiddleware
         from miniflow.server.middleware import RequestContextMiddleware, IPRateLimitMiddleware
 
-        # CORS
-        origins = self._config.get_list("Server", "allowed_origins", "*")
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=origins if isinstance(origins, list) else [origins],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-
-        # Request Context & Rate Limit
-        # Note: Order matters - RequestContextMiddleware should be added first
-        # so it runs last (middleware are executed in reverse order)
+        # Request Context & Rate Limit (bunlar önce eklenmeli)
+        # Not: FastAPI'de middleware'ler ters sırada çalışır (en son eklenen ilk çalışır)
         app.add_middleware(IPRateLimitMiddleware)
         app.add_middleware(RequestContextMiddleware)
+        
+        # CORS - EN SON eklenmeli ki ilk çalışsın
+        origins = self._config.get_list("Server", "allowed_origins", "*")
+        
+        # Origins'i düzgün parse et
+        if isinstance(origins, list) and origins:
+            # Liste varsa direkt kullan
+            cors_origins = origins
+        elif isinstance(origins, str):
+            if origins == "*":
+                # Tüm origin'lere izin ver - FastAPI'de allow_origin_regex kullanmalıyız
+                cors_origins = None  # allow_origin_regex kullanacağız
+            else:
+                cors_origins = [origins]
+        else:
+            # Default: tüm origin'lere izin ver
+            cors_origins = None
+        
+        # CORS middleware'i ekle
+        if cors_origins is None:
+            # Tüm origin'lere izin ver
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origin_regex=".*",
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        else:
+            # Belirli origin'lere izin ver
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=cors_origins,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
 
     def _configure_exception_handlers(self, app):
         """Exception handler yapılandırması"""

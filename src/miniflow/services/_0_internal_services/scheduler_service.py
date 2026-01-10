@@ -242,7 +242,7 @@ class RefrenceResolver:
         return final_parts
         
     @staticmethod
-    def _get_value_from_context(path_parts: list, context: Any):
+    def _get_value_from_context(path_parts: list, context: Any, param_name: str = None):
         """
         Parçalara ayrılmış yol ile context'ten değer çıkarır.
         
@@ -251,6 +251,7 @@ class RefrenceResolver:
                               Örnek: ["data", "items", "[0]", "name"]
             context (Any): Dict veya list, reference resolver metodlarından gelir.
                           Örnek: ExecutionOutput.result_data, Execution.trigger_data, File metadata
+            param_name (str, optional): Parametre adı, InvalidInputError için field_name olarak kullanılır.
         
         Returns:
             Any: Yoldan çıkarılan değer. Örnek: "test", 123, {"key": "value"}
@@ -258,6 +259,7 @@ class RefrenceResolver:
         Girdi:
             path_parts: ["data", "items", "[0]", "name"]  # Parçalara ayrılmış yol
             context: {"data": {"items": [{"name": "test"}]}}  # Dict veya list
+            param_name: "api_key"  # Parametre adı
         
         Çıktı:
             "test"  # Yoldan çıkarılan değer
@@ -265,24 +267,50 @@ class RefrenceResolver:
         if path_parts == []:
             return context
         
+        # field_name için param_name kullan, yoksa path kullan
+        field_name = param_name if param_name else ".".join(path_parts) if path_parts else "path"
+        
         if not isinstance(context, (dict, list)):
-            raise InvalidInputError(message=f"Cannot resolve path '{path_parts}' on non-nested data type: {type(context).__name__}")
+            raise InvalidInputError(
+                field_name=field_name,
+                message=f"Cannot resolve path '{path_parts}' on non-nested data type: {type(context).__name__}"
+            )
         
         current_data = context
         for path_part in path_parts:
+            # Her iterasyonda current_data'nın iterable olup olmadığını kontrol et
+            if not isinstance(current_data, (dict, list)):
+                raise InvalidInputError(
+                    field_name=field_name,
+                    message=f"Cannot traverse path on primitive type '{type(current_data).__name__}'. "
+                    f"Value: {current_data}, attempting to access: '{path_part}'"
+                )
+            
             if path_part.startswith("[") and path_part.endswith("]"):
                 if not isinstance(current_data, list):
-                    raise InvalidInputError(message=f"Cannot access array index '{path_part}' on non-list data")
+                    raise InvalidInputError(
+                        field_name=field_name,
+                        message=f"Cannot access array index '{path_part}' on non-list data"
+                    )
                 try:
                     index = int(path_part[1:-1])
                     if index < 0 or index >= len(current_data):
-                        raise InvalidInputError(message=f"Array index '{index}' out of range (length: {len(current_data)})")
+                        raise InvalidInputError(
+                            field_name=field_name,
+                            message=f"Array index '{index}' out of range (length: {len(current_data)})"
+                        )
                     current_data = current_data[index]
                 except ValueError:
-                    raise InvalidInputError(message=f"Invalid array index: {path_part}")
+                    raise InvalidInputError(
+                        field_name=field_name,
+                        message=f"Invalid array index: {path_part}"
+                    )
             else:
                 if path_part not in current_data:
-                    raise InvalidInputError(message=f"Key '{path_part}' not found in data")   
+                    raise InvalidInputError(
+                        field_name=field_name,
+                        message=f"Key '{path_part}' not found in data"
+                    )   
                 current_data = current_data[path_part]
         return current_data            
 
@@ -414,7 +442,7 @@ class RefrenceResolver:
         
         trigger_data = execution.trigger_data or {}
         path_parts = cls._resolve_nested_reference(path) if path else []
-        value = cls._get_value_from_context(path_parts, trigger_data)
+        value = cls._get_value_from_context(path_parts, trigger_data, param_name)
         
         return cls._convert_to_type(param_name, value, expected_type)
     
@@ -467,7 +495,7 @@ class RefrenceResolver:
         
         node_data = execution_output.result_data or {}
         path_parts = cls._resolve_nested_reference(path) if path else []
-        value = cls._get_value_from_context(path_parts, node_data)
+        value = cls._get_value_from_context(path_parts, node_data, param_name)
         
         return cls._convert_to_type(param_name, value, expected_type)
 
@@ -599,7 +627,7 @@ class RefrenceResolver:
         }
 
         path_parts = cls._resolve_nested_reference(path) if path else []
-        value = cls._get_value_from_context(path_parts, database_data)
+        value = cls._get_value_from_context(path_parts, database_data, param_name)
         
         return cls._convert_to_type(param_name, value, expected_type)
 
@@ -666,7 +694,10 @@ class RefrenceResolver:
                 logger.debug(f"File content read successfully: file_id={id}, size={len(value)} bytes")
             except Exception as e:
                 logger.error(f"Failed to read file content: file_id={id}, file_path={file_obj.file_path}, error={str(e)}")
-                raise InvalidInputError(field_name=param_name ,message=f"Failed to read file content: {str(e)}")
+                raise InvalidInputError(
+                    field_name=param_name,
+                    message=f"Failed to read file content: {str(e)}"
+                )
         else:
             file_data = {
                 "name": file_obj.name,
@@ -680,7 +711,7 @@ class RefrenceResolver:
             }
 
             path_parts = cls._resolve_nested_reference(path) if path else []
-            value = cls._get_value_from_context(path_parts, file_data)
+            value = cls._get_value_from_context(path_parts, file_data, param_name)
         
         return cls._convert_to_type(param_name, value, expected_type)
 
@@ -737,7 +768,7 @@ class RefrenceResolver:
         
         credential_data = decrypt_data(credential.credential_data)
         path_parts = cls._resolve_nested_reference(path) if path else []
-        value = cls._get_value_from_context(path_parts, credential_data)
+        value = cls._get_value_from_context(path_parts, credential_data, param_name)
 
         return cls._convert_to_type(param_name, value, expected_type)
 
@@ -872,7 +903,10 @@ class SchedulerForInputHandler:
 
         valid_types = ["static", "trigger", "node", "value", "credential", "database", "file"]
         if ref_type not in valid_types:
-            raise InvalidInputError(message=f"Invalid reference type '{ref_type}'. Valid types: {', '.join(valid_types)}")
+            raise InvalidInputError(
+                field_name=param_name,
+                message=f"Invalid reference type '{ref_type}'. Valid types: {', '.join(valid_types)}"
+            )
         
         id_or_value = None
         value_path = None
@@ -892,7 +926,10 @@ class SchedulerForInputHandler:
                 id_or_value = identifier_path
                 value_path = None
         else:
-            raise InvalidInputError(message=f"Invalid reference type '{ref_type}'. Valid types: {', '.join(valid_types)}")
+            raise InvalidInputError(
+                field_name=param_name,
+                message=f"Invalid reference type '{ref_type}'. Valid types: {', '.join(valid_types)}"
+            )
         
         result = {
             "type": ref_type,
@@ -1157,6 +1194,164 @@ class SchedulerForInputHandler:
             session, 
             execution_input_ids=execution_input_ids
         )
+
+    @classmethod
+    @with_transaction(manager=None)
+    def mark_executions_failed(
+        cls,
+        session,
+        *,
+        execution_input_ids: List[str],
+        error_message: str,
+        error_details: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Execution input'lardan execution'ları FAILED olarak işaretler.
+        
+        Context oluşturma, payload hazırlama veya engine submission hatalarında
+        execution'ların sonsuz döngüye girmemesi için kullanılır.
+        
+        ÖNEMLİ: Bu metod execution input'ları SİLER, böylece bir sonraki döngüde
+        tekrar seçilmeyecekler.
+        
+        Args:
+            session: Database session, @with_transaction decorator'ından gelir.
+            execution_input_ids: ExecutionInput ID'leri listesi
+            error_message: Hata mesajı
+            error_details: Detaylı hata bilgisi (opsiyonel)
+        
+        Returns:
+            Dict[str, Any]: {"failed_count": int, "execution_ids": List[str]}
+        """
+        if not execution_input_ids:
+            return {"failed_count": 0, "execution_ids": []}
+        
+        # ÖNCE execution input'lardan execution_id'leri al (silmeden önce)
+        # Çünkü silindikten sonra almak zor olabilir
+        execution_inputs = []
+        execution_id_to_input_ids = {}  # execution_id -> [input_ids] mapping
+        
+        for execution_input_id in execution_input_ids:
+            try:
+                execution_input = _execution_input_repo._get_by_id(
+                    session, 
+                    record_id=execution_input_id, 
+                    include_deleted=False
+                )
+                if execution_input:
+                    execution_inputs.append(execution_input)
+                    if execution_input.execution_id not in execution_id_to_input_ids:
+                        execution_id_to_input_ids[execution_input.execution_id] = []
+                    execution_id_to_input_ids[execution_input.execution_id].append(execution_input_id)
+            except Exception as e:
+                logger.warning(f"Failed to get execution input {execution_input_id}: {e}")
+                # Devam et
+        
+        if not execution_inputs:
+            logger.warning(f"No execution inputs found for IDs: {execution_input_ids}")
+            # Yine de execution input'ları silmeyi dene (belki zaten silinmiş)
+            try:
+                _execution_input_repo._delete_by_ids(session, execution_input_ids=execution_input_ids)
+            except Exception:
+                pass
+            return {"failed_count": 0, "execution_ids": []}
+        
+        # ŞİMDİ execution input'ları sil - böylece bir sonraki döngüde tekrar seçilmeyecekler
+        # Bu kritik çünkü aksi halde sonsuz döngü oluşur
+        try:
+            deleted_count = _execution_input_repo._delete_by_ids(
+                session, 
+                execution_input_ids=execution_input_ids
+            )
+            logger.info(f"Deleted {deleted_count} execution inputs before marking executions as FAILED")
+        except Exception as e:
+            logger.error(f"Failed to delete execution inputs: {e}")
+            # Devam et - execution'ları yine de FAILED yapmaya çalış
+        
+        if not execution_inputs:
+            logger.warning(f"No execution inputs found for IDs: {execution_input_ids}")
+            return {"failed_count": 0, "execution_ids": []}
+        
+        # Unique execution_id'leri topla
+        execution_ids = list(set([inp.execution_id for inp in execution_inputs]))
+        
+        failed_count = 0
+        for execution_id in execution_ids:
+            try:
+                execution = _execution_repo._get_by_id(
+                    session, 
+                    record_id=execution_id, 
+                    include_deleted=False
+                )
+                
+                if not execution:
+                    logger.warning(f"Execution not found: {execution_id}")
+                    continue
+                
+                # Zaten sonlanmış execution'ları atla
+                if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, 
+                                        ExecutionStatus.CANCELLED, ExecutionStatus.TIMEOUT]:
+                    logger.debug(f"Execution {execution_id} already in final status: {execution.status.value}")
+                    continue
+                
+                # Execution sonuçlarını topla
+                remaining_inputs = _execution_input_repo._get_by_execution_id(
+                    session, 
+                    record_id=execution_id,
+                    include_deleted=True  # Silinmiş olanları da al
+                )
+                outputs = _execution_output_repo._get_by_execution_id(
+                    session, 
+                    record_id=execution_id
+                )
+                
+                results = {}
+                
+                # Output'lardan sonuçları al
+                for output in outputs:
+                    results[output.node_id] = {
+                        "status": output.status,
+                        "result_data": output.result_data,
+                        "duration": output.duration,
+                        "error_message": output.error_message,
+                        "error_details": output.error_details
+                    }
+                
+                # Bekleyen input'ları CANCELLED olarak işaretle
+                for inp in remaining_inputs:
+                    if inp.node_id not in results:
+                        results[inp.node_id] = {
+                            "status": "CANCELLED",
+                            "result_data": None,
+                            "duration": None,
+                            "error_message": "Execution cancelled due to input handler error",
+                            "error_details": None
+                        }
+                
+                # Kalan ExecutionInput ve ExecutionOutput'ları temizle
+                _execution_input_repo._delete_by_execution_id(session, execution_id=execution_id)
+                _execution_output_repo._delete_by_execution_id(session, execution_id=execution_id)
+                
+                # Execution'ı FAILED olarak güncelle
+                ended_at = datetime.now(timezone.utc)
+                execution.status = ExecutionStatus.FAILED
+                execution.ended_at = ended_at
+                execution.results = results
+                execution.error_message = error_message
+                execution.error_details = error_details or {}
+                session.add(execution)
+                
+                failed_count += 1
+                logger.warning(f"Marked execution {execution_id} as FAILED due to input handler error: {error_message}")
+                
+            except Exception as e:
+                logger.error(f"Failed to mark execution {execution_id} as FAILED: {e}")
+                continue
+        
+        return {
+            "failed_count": failed_count,
+            "execution_ids": execution_ids
+        }
 
 class SchedulerForOutputHandler:
     """

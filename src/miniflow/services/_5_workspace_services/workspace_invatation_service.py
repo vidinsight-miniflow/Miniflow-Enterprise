@@ -250,6 +250,129 @@ class WorkspaceInvitationService:
             "message": invitation.message
         }
 
+    # ==================================================================================== INVITE BY EMAIL ==
+    @classmethod
+    @with_transaction(manager=None)
+    def invite_user_by_email(
+        cls,
+        session,
+        *,
+        workspace_id: str,
+        invited_by: str,
+        email: str,
+        role_id: str,
+        message: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Email ile kullanıcıyı workspace'e davet eder.
+        
+        Args:
+            workspace_id: Workspace ID'si
+            invited_by: Daveti gönderen kullanıcı ID'si
+            email: Davet edilecek kullanıcının email adresi
+            role_id: Atanacak rol ID'si
+            message: Davet mesajı (opsiyonel)
+            
+        Returns:
+            Oluşturulan davet bilgileri
+            
+        Raises:
+            ResourceNotFoundError: Kullanıcı bulunamadı
+            BusinessRuleViolationError: Üye limiti aşıldı, zaten üye, zaten davetli
+        """
+        # Email ile kullanıcıyı bul
+        invitee = cls._user_repo._get_by_email(session, email=email, include_deleted=False)
+        if not invitee:
+            raise ResourceNotFoundError(
+                resource_name="User",
+                resource_id=email,
+                message=f"User with email '{email}' not found. User must be registered first."
+            )
+        
+        # invite_user metodunun mantığını kullan (aynı transaction içinde)
+        workspace = cls._workspace_repo._get_by_id(session, record_id=workspace_id)
+        if not workspace:
+            raise ResourceNotFoundError(
+                resource_name="Workspace",
+                resource_id=workspace_id
+            )
+        
+        # Üye limiti kontrolü
+        if workspace.current_member_count >= workspace.member_limit:
+            raise BusinessRuleViolationError(
+                rule_name="member_limit_reached",
+                rule_detail=f"Workspace {workspace_id} has {workspace.current_member_count} members, limit is {workspace.member_limit}",
+                message="Workspace member limit reached. Upgrade your plan to invite more members."
+            )
+        
+        # Rolü al
+        role = cls._user_roles_repo._get_by_id(session, record_id=role_id)
+        if not role:
+            raise ResourceNotFoundError(
+                resource_name="UserRole",
+                resource_id=role_id
+            )
+        
+        # Owner rolüne davet edilemez
+        if role.name.lower() == "owner":
+            raise BusinessRuleViolationError(
+                rule_name="cannot_invite_as_owner",
+                rule_detail=f"Cannot invite user {invitee.id} as owner role in workspace {workspace_id}",
+                message="Cannot invite user as owner. Use transfer ownership instead."
+            )
+        
+        # Zaten üye mi?
+        existing_member = cls._workspace_member_repo._get_by_workspace_id_and_user_id(
+            session, 
+            workspace_id=workspace_id, 
+            user_id=invitee.id
+        )
+        if existing_member:
+            raise BusinessRuleViolationError(
+                rule_name="already_member",
+                rule_detail=f"User {invitee.id} is already a member of workspace {workspace_id}",
+                message="User is already a member of this workspace"
+            )
+        
+        # Zaten bekleyen davet var mı?
+        existing_invitation = cls._workspace_invitation_repo._get_by_workspace_id_and_user_id(
+            session, 
+            workspace_id=workspace_id, 
+            user_id=invitee.id
+        )
+        if existing_invitation and existing_invitation.is_pending:
+            raise BusinessRuleViolationError(
+                rule_name="invitation_exists",
+                message="A pending invitation already exists for this user"
+            )
+        
+        # Eski daveti sil (varsa ve pending değilse)
+        if existing_invitation:
+            cls._workspace_invitation_repo._delete(session, record_id=existing_invitation.id)
+        
+        # Davet oluştur
+        invitation = cls._workspace_invitation_repo._create(
+            session,
+            workspace_id=workspace_id,
+            invited_by=invited_by,
+            invitee_id=invitee.id,
+            email=invitee.email,
+            role_id=role_id,
+            status=InvitationStatus.PENDING,
+            message=message or "You have been invited to join this workspace",
+            created_by=invited_by
+        )
+        
+        return {
+            "id": invitation.id,
+            "workspace_id": invitation.workspace_id,
+            "invitee_id": invitation.invitee_id,
+            "invitee_email": invitation.email,
+            "role_id": invitation.role_id,
+            "status": invitation.status.value,
+            "message": invitation.message
+        }
+
     # ==================================================================================== ACCEPT ==
     @classmethod
     @with_transaction(manager=None)

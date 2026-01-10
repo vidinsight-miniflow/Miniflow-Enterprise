@@ -1,18 +1,19 @@
 """Execution management routes for frontend."""
 
 from typing import Optional
-from fastapi import APIRouter, Request, Depends, Path, Query
+from fastapi import APIRouter, Request, Depends, Path, Query, HTTPException, status
 
 from miniflow.server.dependencies import (
     get_execution_service,
     authenticate_user,
     require_workspace_access,
 )
-from miniflow.server.dependencies.auth import AuthenticatedUser
+from miniflow.server.dependencies.auth import AuthenticatedUser, ApiKeyCredentials, authenticate_api_key
 from miniflow.server.schemas.base_schemas import create_success_response
 from miniflow.models.enums import ExecutionStatus
 from .schemas.execution_management_schemas import (
     StartExecutionByWorkflowRequest,
+    StartExecutionByTriggerRequest,
     StartExecutionResponse,
     ExecutionResponse,
     WorkspaceExecutionsResponse,
@@ -24,8 +25,44 @@ router = APIRouter(prefix="/workspaces", tags=["Executions"])
 
 
 # ============================================================================
-# START EXECUTION ENDPOINTS (TEST)
+# START EXECUTION ENDPOINTS
 # ============================================================================
+
+@router.post("/{workspace_id}/triggers/{trigger_id}/execute", response_model_exclude_none=True)
+async def execute_trigger(
+    request: Request,
+    workspace_id: str = Path(..., description="Workspace ID"),
+    trigger_id: str = Path(..., description="Trigger ID"),
+    trigger_data: StartExecutionByTriggerRequest = ...,
+    service = Depends(get_execution_service),
+    api_key: ApiKeyCredentials = Depends(authenticate_api_key),
+) -> dict:
+    """
+    Execute trigger with API key authentication.
+    
+    Requires: Valid API key with X-API-KEY header
+    Note: Trigger must be enabled and trigger_data must match trigger's input_mapping.
+    """
+    # Validate API key has access to this workspace
+    if api_key["workspace_id"] != workspace_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key does not have access to this workspace"
+        )
+    
+    result = service.start_execution_by_trigger(
+        trigger_id=trigger_id,
+        trigger_data=trigger_data.trigger_data,
+        triggered_by=f"api_key:{api_key['api_key_id']}"
+    )
+    
+    response_data = StartExecutionResponse(**result)
+    return create_success_response(
+        request,
+        data=response_data.model_dump(),
+        message="Trigger executed successfully."
+    )
+
 
 @router.post("/{workspace_id}/workflows/{workflow_id}/executions/test", response_model_exclude_none=True)
 async def start_execution_by_workflow(

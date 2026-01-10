@@ -175,35 +175,65 @@ class ExecutionInputHandler:
         if not task_ids:
             return
         
+        failed_task_ids = []
+        contexts = {}
+        payloads = []
+        execution_input_ids = []
+        
         try:
             contexts = cls._create_contexts_batch(task_ids)
             
+            # Context oluşturulamayan task'ları işaretle
+            failed_task_ids.extend([tid for tid in task_ids if tid not in contexts])
+            
             if not contexts:
                 logger.warning(f"No contexts created for {len(task_ids)} task IDs")
+                # Tüm task'lar başarısız - execution'ları FAILED yap ve input'ları sil
+                cls._mark_failed_executions(task_ids, "Failed to create execution contexts")
                 return
             
             payloads, execution_input_ids = cls._prepare_payloads(contexts)
             
+            # Payload hazırlanamayan context'leri işaretle
+            successful_context_ids = set(execution_input_ids)
+            failed_task_ids.extend([tid for tid in contexts.keys() if tid not in successful_context_ids])
+            
             if not payloads:
                 logger.warning(f"No payloads prepared for {len(contexts)} contexts")
+                # Tüm context'ler başarısız - execution'ları FAILED yap ve input'ları sil
+                cls._mark_failed_executions(list(contexts.keys()), "Failed to prepare execution payloads")
                 return
             
             if len(payloads) != len(execution_input_ids):
                 logger.warning(f"Payload count mismatch: {len(payloads)} payloads vs {len(execution_input_ids)} execution_input_ids")
+                # Mismatch olan task'ları işaretle - execution'ları FAILED yap ve input'ları sil
+                cls._mark_failed_executions(task_ids, "Payload count mismatch")
                 return
             
+            # Engine'e göndermeyi dene
             try:
                 cls._submit_to_engine(payloads)
+                # Başarılı - execution input'ları sil
                 cls._remove_execution_inputs(execution_input_ids)
+                logger.info(f"Successfully processed {len(payloads)} tasks")
             except Exception as e:
-                logger.error(f"Failed to submit payloads to engine, not removing execution inputs: {e}")
-                raise
-            
-            logger.info(f"Successfully processed {len(payloads)} tasks")
+                logger.error(f"Failed to submit payloads to engine: {e}")
+                # Engine submission başarısız - execution'ları FAILED yap ve input'ları sil
+                # Bu sayede bir sonraki döngüde tekrar seçilmeyecek
+                cls._mark_failed_executions(execution_input_ids, f"Failed to submit payloads to engine: {str(e)}")
+                # Exception fırlatma - main loop devam etsin ama bu task'lar işlenmeyecek
+                return
             
         except Exception as e:
             logger.error(f"Error processing tasks: {e}")
-            raise
+            # Genel hata - başarısız olan task'ları işaretle
+            if failed_task_ids:
+                cls._mark_failed_executions(failed_task_ids, f"Error processing tasks: {str(e)}")
+            # Eğer hiçbir task başarılı olmadıysa, tüm task'ları işaretle
+            elif not contexts or not payloads:
+                cls._mark_failed_executions(task_ids, f"Error processing tasks: {str(e)}")
+            # Exception fırlatma - main loop devam etsin ama bu task'lar işlenmeyecek
+            return
 
     @classmethod
     def _create_contexts_batch(cls, task_ids: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -357,3 +387,34 @@ class ExecutionInputHandler:
         if old_interval != new_interval:
             cls._current_polling_interval = new_interval
             logger.debug(f"Polling interval adjusted: {old_interval:.2f}s -> {new_interval:.2f}s")
+
+    @classmethod
+    def _mark_failed_executions(cls, execution_input_ids: List[str], error_message: str):
+        """
+        Execution input'lardan execution'ları FAILED olarak işaretler.
+        
+        Context oluşturma, payload hazırlama veya engine submission hatalarında
+        execution'ların sonsuz döngüye girmemesi için kullanılır.
+        
+        Args:
+            execution_input_ids: ExecutionInput ID'leri listesi
+            error_message: Hata mesajı
+        """
+        if not execution_input_ids:
+            return
+        
+        try:
+            result = SchedulerForInputHandler.mark_executions_failed(
+                execution_input_ids=execution_input_ids,
+                error_message=error_message,
+                error_details={
+                    "source": "ExecutionInputHandler",
+                    "error_type": "pre_engine_error"
+                }
+            )
+            logger.warning(
+                f"Marked {result.get('failed_count', 0)} execution(s) as FAILED "
+                f"due to input handler error: {error_message}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to mark executions as FAILED: {e}")

@@ -66,6 +66,13 @@ class InviteUserRequest(BaseModel):
     message: Optional[str] = Field(None, max_length=500, description="Invitation message")
 
 
+class InviteUserByEmailRequest(BaseModel):
+    """Request schema for inviting user by email."""
+    email: str = Field(..., description="Email address of user to invite")
+    role_id: str = Field(..., description="Role ID to assign")
+    message: Optional[str] = Field(None, max_length=500, description="Invitation message")
+
+
 class InviteUserResponse(BaseModel):
     """Response schema for inviting user."""
     id: str = Field(..., description="Invitation ID")
