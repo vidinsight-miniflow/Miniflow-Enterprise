@@ -73,6 +73,20 @@ from .security import (
     TokenInvalidError,
     TokenExpiredError,
 )
+from .services import (
+    ServiceException,
+    AuthServiceException,
+    RegistrationEmailAlreadyExistsError,
+    RegistrationUsernameAlreadyExistsError,
+    RegistrationInvalidEmailFormatError,
+    RegistrationWeakPasswordError,
+    RegistrationInvalidUsernameError,
+    EmailVerificationTokenNotFoundError,
+    EmailVerificationTokenExpiredError,
+    EmailVerificationTokenInvalidError,
+    EmailAlreadyVerifiedError,
+    EmailNotFoundError,
+)
 
 __all__ = [
     # Base exception
@@ -144,4 +158,15 @@ __all__ = [
     "TokenGenerationError",
     "TokenInvalidError",
     "TokenExpiredError",
+    # Service exceptions
+    "ServiceException",
+    "AuthServiceException",
+    "RegistrationEmailAlreadyExistsError",
+    "RegistrationUsernameAlreadyExistsError",
+    "RegistrationInvalidEmailFormatError",
+    "RegistrationWeakPasswordError",
+    "RegistrationInvalidUsernameError",
+    "EmailVerificationTokenNotFoundError",
+    "EmailVerificationTokenInvalidError",
+    "EmailAlreadyVerifiedError",
 ]
