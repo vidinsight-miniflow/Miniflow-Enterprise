@@ -1,8 +1,11 @@
 # ============================================================================
-# QBitra Backend Development Configuration
+# QBitra Backend Configuration Example
 # ============================================================================
-# This configuration file is used when APP_ENV=dev
-# Optimized for development with hot reload and debugging
+# Copy this file to dev.ini, prod.ini, stage.ini, or test.ini based on APP_ENV
+# Location: src/configurations/
+# 
+# This file contains configuration for development environment
+# For production, create prod.ini with appropriate values
 
 # ============================================================================
 # Test Section (Required)
@@ -118,7 +121,6 @@ namespace = qbitra
 job_name = qbitra_service
 metrics_port = 9090
 # Push gateway URL (optional - for pushing metrics)
-# Uncomment and set if you want to use push gateway
 # push_gateway_url = http://localhost:9091
 
 # ============================================================================
