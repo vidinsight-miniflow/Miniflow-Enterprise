@@ -502,8 +502,10 @@ class DatabaseEngine:
             self._engine = create_engine(self._connection_string, **engine_kwargs)
 
         except Exception as e:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message=f"Failed to create database engine: {str(e)}",
+                cause=e
+            ) from e
         
     def _build_session_factory(self) -> None:
         """Veritabanı oturumları oluşturmak için session factory oluştur."""
@@ -515,8 +517,10 @@ class DatabaseEngine:
             self._session_factory = sessionmaker(**session_kwargs)
 
         except Exception as e:
-            error = DatabaseSessionError()
-            raise error
+            raise DatabaseSessionError(
+                message=f"Failed to create session factory: {str(e)}",
+                cause=e
+            ) from e
         
     def _cleanup_resources(self) -> None:
         """Tüm veritabanı kaynaklarını temizle."""
@@ -795,15 +799,18 @@ class DatabaseEngine:
             - :meth:`is_alive`: Engine durumunu kontrol eder
         """
         if not self.is_alive:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message="Engine not initialized. Call start() first."
+            )
         
         try:
             base_metadata.create_all(self._engine)
             self._base_metadata = base_metadata
         except Exception as e:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message=f"Failed to create tables: {str(e)}",
+                cause=e
+            ) from e
     
     def drop_tables(self, base_metadata = None) -> None:
         """Veritabanı tablolarını siler.
@@ -873,8 +880,9 @@ class DatabaseEngine:
             - Migration tools (Alembic): Production için önerilen yöntem
         """
         if not self.is_alive:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message="Engine not initialized. Call start() first."
+            )
         
         try:
             if not base_metadata:
@@ -882,8 +890,10 @@ class DatabaseEngine:
             else:
                 base_metadata.drop_all(self._engine)
         except Exception as e:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message=f"Failed to drop tables: {str(e)}",
+                cause=e
+            ) from e
 
     @property
     def is_alive(self) -> bool:
@@ -999,8 +1009,9 @@ class DatabaseEngine:
             - :meth:`_track_session`: Session tracking implementasyonu
         """
         if not self.is_alive:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message="Engine not initialized. Call start() first."
+            )
 
         try:
             session = self._session_factory()
@@ -1008,8 +1019,10 @@ class DatabaseEngine:
             return session
         
         except Exception as e:
-            error = DatabaseSessionError()
-            raise error
+            raise DatabaseSessionError(
+                message=f"Failed to create session: {str(e)}",
+                cause=e
+            ) from e
 
     @contextmanager
     def session_context(
@@ -1138,8 +1151,9 @@ class DatabaseEngine:
             - :class:`DatabaseManager`: Engine yönetimi
         """
         if not self.is_alive:
-            error = DatabaseEngineError()
-            raise error
+            raise DatabaseEngineError(
+                message="Engine not initialized. Call start() first."
+            )
         
         # Timeout validation
         if timeout is not None:
@@ -1176,7 +1190,8 @@ class DatabaseEngine:
                     raise DatabaseConfigurationError(
                         config_name="isolation_level",
                         message=f"Failed to set isolation level: {isolation_level}",
-                        error_details={"isolation_level": isolation_level}
+                        error_details={"isolation_level": isolation_level},
+                        cause=e
                     )
             else:
                 # Normal session oluştur
@@ -1235,9 +1250,10 @@ class DatabaseEngine:
             
             # Veritabanı hatası ise bağlamla yeniden fırlat
             if isinstance(e, (SQLAlchemyError, OperationalError, DBAPIError)):
-                error_message = f"Database query failed: {type(e).__name__}: {str(e)}"
-                error = DatabaseQueryError(message=error_message)
-                raise error
+                raise DatabaseQueryError(
+                    message=f"Database query failed: {type(e).__name__}: {str(e)}",
+                    cause=e
+                ) from e
             
             # Veritabanı dışı hataları olduğu gibi yeniden fırlat
             raise
