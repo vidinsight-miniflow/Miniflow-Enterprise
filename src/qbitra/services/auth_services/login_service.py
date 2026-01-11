@@ -29,7 +29,13 @@ class LoginService:
     _auth_session_repo = RepositoryRegistry().auth_session_repository
     _login_history_repo = RepositoryRegistry().login_history_repository
 
-    _max_active_sessions = ConfigurationHandler.get_value_as_int("AUTH", "max_active_sessions", fallback=5)
+    @classmethod
+    def _get_max_active_sessions(cls):
+        """Lazy initialization of max_active_sessions from config."""
+        try:
+            return ConfigurationHandler.get_value_as_int("AUTH", "max_active_sessions", fallback=5)
+        except Exception:
+            return 5  # Fallback if config not initialized
 
     @classmethod
     @with_transaction(manager=None)

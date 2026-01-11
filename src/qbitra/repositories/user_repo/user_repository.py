@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from qbitra.database.repos.extra import ExtraRepository
 from qbitra.database.repos.base import handle_exceptions
 from qbitra.models.user_models.user import User
+from qbitra.utils.helpers.token_helper import verify_hashed_token
 
 
 class UserRepository(ExtraRepository[User]):
@@ -27,15 +28,35 @@ class UserRepository(ExtraRepository[User]):
 
     @handle_exceptions
     def get_by_email_verification_token(self, session: Session, token: str, include_deleted: bool = False) -> Optional[User]:
-        query = select(User).where(User.email_verification_token == token)
+        """
+        Get user by email verification token.
+        Since token is stored as hash, we need to check all users with tokens.
+        """
+        query = select(User).where(User.email_verification_token.isnot(None))
         query = self._soft_delete_filter(query, include_deleted)
-        return session.execute(query).scalar_one_or_none()
+        users = session.execute(query).scalars().all()
+        
+        for user in users:
+            if user.email_verification_token and verify_hashed_token(token, user.email_verification_token):
+                return user
+        
+        return None
     
     @handle_exceptions
     def get_by_password_reset_token(self, session: Session, token: str, include_deleted: bool = False) -> Optional[User]:
-        query = select(User).where(User.password_reset_token == token)
+        """
+        Get user by password reset token.
+        Since token is stored as hash, we need to check all users with tokens.
+        """
+        query = select(User).where(User.password_reset_token.isnot(None))
         query = self._soft_delete_filter(query, include_deleted)
-        return session.execute(query).scalar_one_or_none()
+        users = session.execute(query).scalars().all()
+        
+        for user in users:
+            if user.password_reset_token and verify_hashed_token(token, user.password_reset_token):
+                return user
+        
+        return None
 
     @handle_exceptions
     def get_by_email_or_username(self, session: Session, email_or_username: str, include_deleted: bool = False) -> Optional[User]:

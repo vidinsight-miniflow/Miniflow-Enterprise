@@ -95,9 +95,9 @@ def setup_app(qbitra: QBitra):
     qbitra.add_exception_handler(QBitraException, qbitra_exception_handler)
     logger.info("Exception handler eklendi")
     
-    # Router'ları ekle (örnek)
-    # from qbitra.app.routes import auth_router
-    # qbitra.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
+    # Router'ları ekle
+    from qbitra.app.routes.auth import router as auth_router
+    qbitra.include_router(auth_router, prefix="/api")
     
     # Middleware ekle (örnek)
     # from some_middleware import SomeMiddleware
