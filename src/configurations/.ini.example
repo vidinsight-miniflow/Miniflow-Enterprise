@@ -1,8 +1,11 @@
 # ============================================================================
-# QBitra Backend Development Configuration
+# QBitra Backend Configuration Example
 # ============================================================================
-# This configuration file is used when APP_ENV=dev
-# Optimized for development with hot reload and debugging
+# Copy this file to dev.ini, prod.ini, stage.ini, or test.ini based on APP_ENV
+# Location: src/configurations/
+# 
+# This file contains configuration for development environment
+# For production, create prod.ini with appropriate values
 
 # ============================================================================
 # Test Section (Required)
@@ -18,23 +21,12 @@ value = ThisKeyIsForConfigTest
 [Database]
 # Database type: sqlite, postgresql, mysql
 db_type = sqlite
-
-# SQLite Configuration (required when db_type=sqlite)
-sqlite_path = ./qbitra.db
-# Alternative: Use :memory: for in-memory database
-# sqlite_path = :memory:
-
-# Database name (used for PostgreSQL/MySQL, optional for SQLite)
+db_path = ./qbitra.db
 db_name = qbitra
-
-# PostgreSQL/MySQL Configuration (only required when db_type=postgresql or mysql)
-# Uncomment and configure if using PostgreSQL or MySQL
-# db_host = localhost
-# db_port = 5432  # PostgreSQL default: 5432, MySQL default: 3306
-# db_user = postgres
-# db_password = your_password_here
-
-# Seed data path (optional)
+db_host = localhost
+db_port = 5432
+db_user = postgres
+db_password = 
 seed_data_path = ./seeds/
 
 # ============================================================================
@@ -74,5 +66,4 @@ namespace = qbitra
 job_name = qbitra_service
 metrics_port = 9090
 # Push gateway URL (optional - for pushing metrics)
-# Uncomment and set if you want to use push gateway
 # push_gateway_url = http://localhost:9091
