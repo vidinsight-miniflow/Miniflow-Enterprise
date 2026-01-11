@@ -1,4 +1,5 @@
 import secrets
+from hmac import compare_digest
 from datetime import datetime, timezone, timedelta
 
 from qbitra.core.qbitra_logger import get_logger
@@ -126,7 +127,8 @@ def verify_hashed_token(token: str, hashed_token: str) -> bool:
     
     try:
         computed_hash = hash_data(token)
-        is_valid = computed_hash == hashed_token
+        # Use constant-time comparison to prevent timing attacks
+        is_valid = compare_digest(computed_hash, hashed_token)
         _logger.debug("Hashed token doğrulama tamamlandı", extra={"is_valid": is_valid})
         return is_valid
     except DataHashingError as e:
@@ -140,21 +142,22 @@ def is_token_expired(expires_at: datetime) -> bool:
         return True
         
     try:
-        # Ensure UTC timezone
         if not isinstance(expires_at, datetime):
             return True
-            
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        # Create immutable copy to avoid modifying the original parameter
+        expires_at_utc = expires_at
+        if expires_at_utc.tzinfo is None:
+            expires_at_utc = expires_at_utc.replace(tzinfo=timezone.utc)
         
         now = _now()
-        is_expired = now > expires_at
+        is_expired = now > expires_at_utc
         
         _logger.debug(
             "Token expiration kontrolü",
             extra={
                 "is_expired": is_expired,
-                "expires_at": expires_at.isoformat(),
+                "expires_at": expires_at_utc.isoformat(),
                 "now": now.isoformat()
             }
         )
@@ -169,26 +172,54 @@ def is_token_expired(expires_at: datetime) -> bool:
 # SPECIALIZED TOKEN GENERATORS
 # ============================================================================
 
-def generate_email_verification_token() -> str:
-    """Generate email verification token with prefix and hash."""
+def generate_email_verification_token() -> tuple[str, str]:
+    """
+    Generate email verification token with prefix.
+    
+    Returns:
+        tuple[str, str]: (original_token, hashed_token)
+            - original_token: Token to be sent to user via email
+            - hashed_token: Token to be stored in database
+    """
     ConfigurationHandler.ensure_loaded()
     
     prefix = ConfigurationHandler.get_value_as_str("Tokens", "email_verification_prefix", fallback="email_verify")
     length = ConfigurationHandler.get_value_as_int("Tokens", "email_verification_length", fallback=32)
     
     _logger.debug("Email verification token oluşturuluyor", extra={"prefix": prefix, "length": length})
-    return generate_token_with_prefix(prefix, length, hash=True)
+    
+    # Generate original token (not hashed)
+    original_token = generate_token_with_prefix(prefix, length, hash=False)
+    
+    # Hash the token for database storage
+    hashed_token = hash_data(original_token)
+    
+    return original_token, hashed_token
 
 
-def generate_password_reset_token() -> str:
-    """Generate password reset token with prefix and hash."""
+def generate_password_reset_token() -> tuple[str, str]:
+    """
+    Generate password reset token with prefix.
+    
+    Returns:
+        tuple[str, str]: (original_token, hashed_token)
+            - original_token: Token to be sent to user via email
+            - hashed_token: Token to be stored in database
+    """
     ConfigurationHandler.ensure_loaded()
     
     prefix = ConfigurationHandler.get_value_as_str("Tokens", "password_reset_prefix", fallback="pwd_reset")
     length = ConfigurationHandler.get_value_as_int("Tokens", "password_reset_length", fallback=32)
     
     _logger.debug("Password reset token oluşturuluyor", extra={"prefix": prefix, "length": length})
-    return generate_token_with_prefix(prefix, length, hash=True)
+    
+    # Generate original token (not hashed)
+    original_token = generate_token_with_prefix(prefix, length, hash=False)
+    
+    # Hash the token for database storage
+    hashed_token = hash_data(original_token)
+    
+    return original_token, hashed_token
 
 
 def generate_workspace_invitation_token() -> str:
