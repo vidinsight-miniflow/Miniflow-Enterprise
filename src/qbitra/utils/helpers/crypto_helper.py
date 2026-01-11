@@ -126,7 +126,7 @@ def _get_encryption_key() -> bytes:
                 exc_info=True
             )
             key = None
-        
+
         if key:
             _logger.info(
                 "ENCRYPTION_KEY bulundu, validation yapılıyor",
@@ -218,7 +218,7 @@ def encrypt_data(plain_text: str) -> str:
             cause=e
         ) from e
 
-
+    
 def decrypt_data(encrypted_text: str) -> str:
     if not encrypted_text:
         _logger.debug("Boş encrypted_text deşifreleniyor, boş string döndürülüyor")
@@ -278,7 +278,7 @@ def decrypt_data(encrypted_text: str) -> str:
             cause=e
         ) from e
 
-
+    
 def hash_password(password: str, rounds: int = 12) -> str:
     if not password:
         _logger.error("Password hash işlemi için boş password verildi")
@@ -325,7 +325,7 @@ def hash_password(password: str, rounds: int = 12) -> str:
             cause=e
         ) from e
 
-
+    
 def verify_password(password: str, hashed_password: str) -> bool:
     if not password or not hashed_password:
         _logger.debug(

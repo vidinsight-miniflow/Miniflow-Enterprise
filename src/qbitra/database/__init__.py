@@ -28,6 +28,8 @@ from .engine import (
     with_readonly_session,
     with_retry_session,
 )
+
+with_transaction = with_transaction_session
 from .models import (
     BaseModel,
     TimestampMixin,
@@ -60,6 +62,7 @@ __all__ = [
     "with_retry",
     # Decorators
     "with_session",
+    "with_transaction",
     "with_transaction_session",
     "with_readonly_session",
     "with_retry_session",

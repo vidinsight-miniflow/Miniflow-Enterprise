@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from qbitra.repositories import RepositoryRegistry
 from qbitra.database import with_transaction
 from qbitra.models.user_models.user import User
-from qbitra.core.logger import get_logger
+from qbitra.core import get_logger
 from qbitra.utils.helpers.crypto_helper import hash_password
 from qbitra.utils.helpers.token_helper import is_token_expired, verify_hashed_token
 from qbitra.core.exceptions.services import (
@@ -68,7 +68,7 @@ class RegistrationService:
         )
 
         original_token = user.generate_email_verification_token()
-        cls._user_repo.update(session, user)
+        session.flush()
 
         # TODO: E-posta doğrulama e-postası gönder
 
@@ -108,7 +108,7 @@ class RegistrationService:
             if is_token_expired(user.email_verification_token_expires_at):
                 logger.info("Token süresi dolmuş, yeni token otomatik gönderiliyor", extra={"user_id": user.id, "email": user.email})
                 original_token = user.generate_email_verification_token()
-                cls._user_repo.update(session, user)
+                session.flush()
 
                 # TODO: E-posta doğrulama e-postası gönder
 
@@ -127,7 +127,7 @@ class RegistrationService:
             user.email_verified_at = datetime.now(timezone.utc)
             user.email_verification_token = None
             user.email_verification_token_expires_at = None
-            cls._user_repo.update(session, user)
+            session.flush()
 
             logger.info("E-posta doğrulama tamamlandı", extra={"user_id": user.id, "email": user.email})
 
@@ -168,7 +168,7 @@ class RegistrationService:
             raise EmailAlreadyVerifiedError(email=email)
 
         original_token = user.generate_email_verification_token()
-        cls._user_repo.update(session, user)
+        session.flush()
 
         # TODO: Doğrulama e-postası yeniden gönder
 

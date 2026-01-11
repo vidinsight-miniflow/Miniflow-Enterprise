@@ -1,6 +1,6 @@
-from typing import Optional, List
+from typing import Optional
 
-from sqlalchemy import select, or_, func, and_
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
 
 from qbitra.database.repos.extra import ExtraRepository

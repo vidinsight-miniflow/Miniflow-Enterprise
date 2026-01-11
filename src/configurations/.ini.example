@@ -21,12 +21,23 @@ value = ThisKeyIsForConfigTest
 [Database]
 # Database type: sqlite, postgresql, mysql
 db_type = sqlite
-db_path = ./qbitra.db
+
+# SQLite Configuration (required when db_type=sqlite)
+sqlite_path = ./qbitra.db
+# Alternative: Use :memory: for in-memory database
+# sqlite_path = :memory:
+
+# Database name (used for PostgreSQL/MySQL, optional for SQLite)
 db_name = qbitra
-db_host = localhost
-db_port = 5432
-db_user = postgres
-db_password = 
+
+# PostgreSQL/MySQL Configuration (only required when db_type=postgresql or mysql)
+# Uncomment and configure if using PostgreSQL or MySQL
+# db_host = localhost
+# db_port = 5432  # PostgreSQL default: 5432, MySQL default: 3306
+# db_user = postgres
+# db_password = your_password_here
+
+# Seed data path (optional)
 seed_data_path = ./seeds/
 
 # ============================================================================
@@ -89,6 +100,14 @@ access_token_type = access
 
 # Refresh token type identifier
 refresh_token_type = refresh
+
+# ============================================================================
+# Authentication Configuration
+# ============================================================================
+[AUTH]
+# Maximum number of active sessions per user
+# When this limit is reached, the oldest session will be revoked
+max_active_sessions = 5
 
 # ============================================================================
 # Token Configuration (Security)

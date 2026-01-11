@@ -82,10 +82,16 @@ from .services import (
     RegistrationWeakPasswordError,
     RegistrationInvalidUsernameError,
     EmailVerificationTokenNotFoundError,
-    EmailVerificationTokenExpiredError,
     EmailVerificationTokenInvalidError,
     EmailAlreadyVerifiedError,
-    EmailNotFoundError,
+    InvalidCredentialsError,
+    EmailNotVerifiedError,
+    AccountLockedError,
+    AccountPermanentlyLockedError,
+    RateLimitedError,
+    InvalidTokenError,
+    SessionNotFoundError,
+    SessionRevokedError,
 )
 
 __all__ = [
@@ -169,4 +175,12 @@ __all__ = [
     "EmailVerificationTokenNotFoundError",
     "EmailVerificationTokenInvalidError",
     "EmailAlreadyVerifiedError",
+    "InvalidCredentialsError",
+    "EmailNotVerifiedError",
+    "AccountLockedError",
+    "AccountPermanentlyLockedError",
+    "RateLimitedError",
+    "InvalidTokenError",
+    "SessionNotFoundError",
+    "SessionRevokedError",
 ]

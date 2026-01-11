@@ -16,7 +16,6 @@ class LoginHistory(BaseModel, TimestampMixin):
     __table_args__ = (
         UniqueConstraint('session_id', name='_session_id_unique'),
         Index('idx_login_history_user_date', 'user_id', 'login_at'),
-        Index('idx_login_history_softdelete', 'is_deleted', 'created_at'),
     )
 
     # ---- Login History  ---- #

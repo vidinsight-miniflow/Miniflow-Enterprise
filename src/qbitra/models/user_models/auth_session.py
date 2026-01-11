@@ -3,9 +3,8 @@ from sqlalchemy import Column, String, DateTime, Boolean, Text, ForeignKey, Inde
 from sqlalchemy.orm import relationship
 
 from qbitra.database.models import BaseModel
-from qbitra.database.models.mixins import SoftDeleteMixin, TimestampMixin
 
-class AuthSession(BaseModel, SoftDeleteMixin, TimestampMixin):
+class AuthSession(BaseModel):
     """Kullanıcı oturum modeli"""
     __prefix__ = "AUS"
     __tablename__ = "auth_sessions"
@@ -15,7 +14,6 @@ class AuthSession(BaseModel, SoftDeleteMixin, TimestampMixin):
         UniqueConstraint('access_token_jti', name='_access_token_jti_unique'),
         UniqueConstraint('refresh_token_jti', name='_refresh_token_jti_unique'),
         Index('idx_auth_sessions_user_active', 'user_id', 'is_revoked', 'access_token_expires_at'),
-        Index('idx_auth_sessions_softdelete', 'is_deleted', 'created_at'),
     )
 
     # ---- Auth Session ---- #
