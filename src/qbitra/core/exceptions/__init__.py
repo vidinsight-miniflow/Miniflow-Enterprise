@@ -54,6 +54,25 @@ from .external import (
     PrometheusClientError,
     PrometheusMetricError,
 )
+from .security import (
+    SecurityException,
+    EncryptionError,
+    EncryptionKeyError,
+    PasswordHashingError,
+    PasswordValidationError,
+    DecryptionError,
+    DataHashingError,
+    JWTError,
+    JWTConfigurationError,
+    JWTExpiredError,
+    JWTInvalidTokenError,
+    JWTMissingClaimError,
+    JWTTokenTypeError,
+    JWTRevokedError,
+    TokenGenerationError,
+    TokenInvalidError,
+    TokenExpiredError,
+)
 
 __all__ = [
     # Base exception
@@ -107,4 +126,22 @@ __all__ = [
     "PrometheusError",
     "PrometheusClientError",
     "PrometheusMetricError",
+    # Security exceptions
+    "SecurityException",
+    "EncryptionError",
+    "EncryptionKeyError",
+    "PasswordHashingError",
+    "PasswordValidationError",
+    "DecryptionError",
+    "DataHashingError",
+    "JWTError",
+    "JWTConfigurationError",
+    "JWTExpiredError",
+    "JWTInvalidTokenError",
+    "JWTMissingClaimError",
+    "JWTTokenTypeError",
+    "JWTRevokedError",
+    "TokenGenerationError",
+    "TokenInvalidError",
+    "TokenExpiredError",
 ]
