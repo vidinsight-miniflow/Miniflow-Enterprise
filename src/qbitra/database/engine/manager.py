@@ -14,6 +14,7 @@ from qbitra.core.exceptions import (
     DatabaseManagerAlreadyInitializedError,
 )
 from qbitra.database.engine.engine import DatabaseEngine
+from ..models import metadata
 
 
 
@@ -99,7 +100,7 @@ class DatabaseManager:
         self,
         config: DatabaseConfig,
         auto_start: bool = True,
-        create_tables: Any = None,
+        auto_create_tables: bool = False,
         force_reinitialize: bool = False,
     ) -> None:
         """Initialize database engine.
@@ -107,7 +108,7 @@ class DatabaseManager:
         Args:
             config: Database configuration
             auto_start: Automatically start engine after initialization
-            create_tables: Metadata object to create tables (optional)
+            auto_create_tables: Create tables from internal metadata if True (default: False)
             force_reinitialize: Force reinitialization if already initialized
         
         Raises:
@@ -135,12 +136,16 @@ class DatabaseManager:
         if auto_start:
             self.start()
         
-        # Create tables if requested
-        if create_tables is not None:
+        # Create tables from internal metadata if requested
+        if auto_create_tables:
+            # Modelleri import et ki metadata'ya kaydedilsinler
+            # qbitra.models import edildiğinde tüm modeller yüklenir ve metadata doldurulur
+            import qbitra.models
+            
             if self._engine._engine is None:
                 self.start()
-            # MetaData.create_all() kullanılmalı, Engine.create_all() değil
-            create_tables.create_all(self._engine._engine)
+            # Metadata'yı doğrudan kullan
+            metadata.create_all(self._engine._engine)
     
     def start(self) -> None:
         """Veritabanı motorunu başlatır.
