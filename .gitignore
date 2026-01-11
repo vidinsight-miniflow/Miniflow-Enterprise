@@ -228,3 +228,4 @@ logs/
 # Compressed log files (rotated logs)
 *.log.gz
 *.log.*.gz
+*.db
