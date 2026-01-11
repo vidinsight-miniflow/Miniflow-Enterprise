@@ -36,6 +36,14 @@ def build_error_response(
     return JSONResponse(content=response_data, status_code=exception.status_code)
 
 async def qbitra_exception_handler(request: Request, exception: Exception) -> JSONResponse:
+    # FastAPI ensures this is always QBitraException due to handler registration
+    if not isinstance(exception, QBitraException):
+        # Fallback for unexpected exceptions
+        from fastapi import status
+        return JSONResponse(
+            content={"success": False, "error": {"message": str(exception)}},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     response = build_error_response(exception)
     return response
 

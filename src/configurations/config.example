@@ -66,6 +66,7 @@ debug = true
 db_type = sqlite
 
 # SQLite Configuration (required when db_type=sqlite)
+# Path is relative to src/ directory
 sqlite_path = ./qbitra.db
 # Alternative: Use :memory: for in-memory database
 # sqlite_path = :memory:
