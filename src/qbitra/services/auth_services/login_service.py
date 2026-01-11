@@ -64,7 +64,12 @@ class LoginService:
         access_token_jti = secrets.token_urlsafe(32)
         refresh_token_jti = secrets.token_urlsafe(32)
 
-        access_token, access_token_expires_at = create_access_token(user_id=user.id, access_token_jti=access_token_jti)
+        # Add is_admin to JWT token for authorization checks without database query
+        access_token, access_token_expires_at = create_access_token(
+            user_id=user.id, 
+            access_token_jti=access_token_jti,
+            additional_claims={"is_admin": user.is_admin}
+        )
         refresh_token, refresh_token_expires_at = create_refresh_token(user_id=user.id, refresh_token_jti=refresh_token_jti)
 
         active_sessions = cls._auth_session_repo.get_all_active_user_sessions(session, user_id=user.id)
@@ -156,9 +161,12 @@ class LoginService:
                 "data": {"valid": False, "error": "Session not found or revoked"}
             }
 
+        # Extract is_admin from JWT payload (added during token creation)
+        is_admin = payload.get("is_admin", False)
+
         return {
             "message": "Token validation successful",
-            "data": {"valid": True, "user_id": auth_session.user_id}
+            "data": {"valid": True, "user_id": auth_session.user_id, "is_admin": is_admin}
         }
 
     @classmethod
@@ -184,7 +192,12 @@ class LoginService:
         new_access_token_jti = secrets.token_urlsafe(32)
         new_refresh_token_jti = secrets.token_urlsafe(32)
 
-        new_access_token, new_access_token_expires_at = create_access_token(user_id=user.id, access_token_jti=new_access_token_jti)
+        # Add is_admin to new access token (user info is already loaded from database)
+        new_access_token, new_access_token_expires_at = create_access_token(
+            user_id=user.id, 
+            access_token_jti=new_access_token_jti,
+            additional_claims={"is_admin": user.is_admin}
+        )
         new_refresh_token, new_refresh_token_expires_at = create_refresh_token(user_id=user.id, refresh_token_jti=new_refresh_token_jti)
 
         auth_session.access_token_jti = new_access_token_jti
