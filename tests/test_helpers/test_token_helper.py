@@ -65,8 +65,10 @@ def test_generate_token_with_prefix_invalid():
 
 def test_verify_hashed_token():
     """Test verification of raw tokens against their hashes."""
+    from qbitra.utils.helpers.crypto_helper import hash_data
+    
     raw_token = "secret-token-123"
-    hashed_token = token_helper.hash_data(raw_token)
+    hashed_token = hash_data(raw_token)
     
     assert token_helper.verify_hashed_token(raw_token, hashed_token) is True
     assert token_helper.verify_hashed_token("wrong-token", hashed_token) is False
@@ -75,28 +77,38 @@ def test_verify_hashed_token():
 
 def test_is_token_expired():
     """Test token expiration logic with UTC awareness."""
-    fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    fixed_now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     
     with patch.object(token_helper, "_now", return_value=fixed_now):
-        # Not expired
+        # Not expired (future)
         future = fixed_now + timedelta(minutes=10)
         assert token_helper.is_token_expired(future) is False
         
-        # Expired
+        # Expired (past)
         past = fixed_now - timedelta(minutes=10)
         assert token_helper.is_token_expired(past) is True
         
-        # Exact time (now vs now) -> not expired yet (now > expires_at check)
+        # Exact time (now == expires_at) -> not expired (now > expires_at is False)
         assert token_helper.is_token_expired(fixed_now) is False
+        
+        # Just expired (1 second ago)
+        just_expired = fixed_now - timedelta(seconds=1)
+        assert token_helper.is_token_expired(just_expired) is True
 
 def test_is_token_expired_timezone_handling():
     """Test that naive datetimes are correctly handled by converting to UTC."""
-    fixed_now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    naive_future = datetime(2026, 1, 1, 0, 10, 0) # Naive
+    fixed_now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    naive_future = datetime(2026, 1, 1, 12, 10, 0)  # Naive (10 minutes later)
+    naive_past = datetime(2026, 1, 1, 11, 50, 0)  # Naive (10 minutes earlier)
     
     with patch.object(token_helper, "_now", return_value=fixed_now):
         # Function handles naive by replacing with UTC
-        assert token_helper.is_token_expired(naive_future) is False
+        assert token_helper.is_token_expired(naive_future) is False  # Future -> not expired
+        assert token_helper.is_token_expired(naive_past) is True  # Past -> expired
+        
+        # Verify original parameter is not modified (immutable copy)
+        assert naive_future.tzinfo is None  # Original should still be naive
+        assert naive_past.tzinfo is None  # Original should still be naive
 
 def test_is_token_expired_invalid_input():
     """Test error handling for invalid expiration inputs."""
@@ -122,10 +134,13 @@ def test_generate_email_verification_token():
          patch.object(ConfigurationHandler, "get_value_as_int", return_value=40) as mock_int, \
          patch.object(ConfigurationHandler, "ensure_loaded"):
         
-        token = token_helper.generate_email_verification_token()
-        # Since it's hashed, it should be 64 characters and not starting with prefix
-        assert len(token) == 64
-        assert "_" not in token
+        original_token, hashed_token = token_helper.generate_email_verification_token()
+        # Original token should have prefix
+        assert original_token.startswith("custom_email_")
+        # Hashed token should be 64 characters (SHA-256 hex)
+        assert len(hashed_token) == 64
+        # Verify they match
+        assert token_helper.verify_hashed_token(original_token, hashed_token) is True
         mock_str.assert_any_call("Tokens", "email_verification_prefix", fallback="email_verify")
         mock_int.assert_any_call("Tokens", "email_verification_length", fallback=32)
 
@@ -135,8 +150,13 @@ def test_generate_password_reset_token():
          patch.object(ConfigurationHandler, "get_value_as_int", return_value=32) as mock_int, \
          patch.object(ConfigurationHandler, "ensure_loaded"):
         
-        token = token_helper.generate_password_reset_token()
-        assert len(token) == 64 # Hashed
+        original_token, hashed_token = token_helper.generate_password_reset_token()
+        # Original token should have prefix
+        assert original_token.startswith("pwd_")
+        # Hashed token should be 64 characters (SHA-256 hex)
+        assert len(hashed_token) == 64
+        # Verify they match
+        assert token_helper.verify_hashed_token(original_token, hashed_token) is True
         mock_str.assert_any_call("Tokens", "password_reset_prefix", fallback="pwd_reset")
 
 def test_generate_workspace_invitation_token():
