@@ -67,3 +67,49 @@ job_name = qbitra_service
 metrics_port = 9090
 # Push gateway URL (optional - for pushing metrics)
 # push_gateway_url = http://localhost:9091
+
+# ============================================================================
+# JWT Settings (Security)
+# ============================================================================
+[JWT Settings]
+# JWT algorithm for token signing (HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512)
+# Default: HS256 (HMAC with SHA-256)
+algorithm = HS256
+
+# Access token expiration time in minutes
+# Default: 60 minutes (1 hour)
+jwt_access_token_expire_minutes = 60
+
+# Refresh token expiration time in days
+# Default: 7 days
+jwt_refresh_token_expire_days = 7
+
+# Access token type identifier
+access_token_type = access
+
+# Refresh token type identifier
+refresh_token_type = refresh
+
+# ============================================================================
+# Token Configuration (Security)
+# ============================================================================
+[Tokens]
+# Email Verification Token
+email_verification_prefix = email_verify
+email_verification_length = 32
+email_verification_expire_hours = 24
+
+# Password Reset Token
+password_reset_prefix = pwd_reset
+password_reset_length = 32
+password_reset_expire_hours = 1
+
+# Workspace Invitation Token
+workspace_invite_prefix = ws_invite
+workspace_invite_length = 48
+workspace_invite_expire_days = 7
+
+# API Key Token
+api_key_prefix = api_key
+api_key_length = 64
+# API Key has no expiration (süresiz)
