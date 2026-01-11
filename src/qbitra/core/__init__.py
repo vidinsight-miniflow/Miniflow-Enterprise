@@ -11,6 +11,8 @@ This package provides core functionality for the QBitra application including:
 # Exceptions
 from .exceptions import (
     QBitraException,
+    ErrorDetailLevel,
+    get_error_level_from_env,
     DatabaseException,
     DatabaseConfigurationError,
     DatabaseValidationError,
@@ -56,6 +58,8 @@ from .qbitra_logger import get_logger, shutdown_logger
 __all__ = [
     # Exceptions
     "QBitraException",
+    "ErrorDetailLevel",
+    "get_error_level_from_env",
     "DatabaseException",
     "DatabaseConfigurationError",
     "DatabaseValidationError",

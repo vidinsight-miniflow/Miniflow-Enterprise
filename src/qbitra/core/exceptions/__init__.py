@@ -7,6 +7,7 @@ All exceptions inherit from QBitraException base class.
 """
 
 from .base import QBitraException
+from .error_levels import ErrorDetailLevel, get_error_level_from_env
 from .database import (
     DatabaseException,
     DatabaseConfigurationError,
@@ -97,6 +98,9 @@ from .services import (
 __all__ = [
     # Base exception
     "QBitraException",
+    # Error levels
+    "ErrorDetailLevel",
+    "get_error_level_from_env",
     # Database exceptions
     "DatabaseException",
     "DatabaseConfigurationError",

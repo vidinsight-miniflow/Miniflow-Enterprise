@@ -1,3 +1,4 @@
+import traceback
 from typing import Optional, Dict, Any
 
 
@@ -23,6 +24,9 @@ class QBitraException(Exception):
         self.error_message = error_message if error_message is not None else self.__class__.error_message
         self.error_details = error_details if error_details is not None else {}
         self.cause = cause
+        
+        # Capture traceback for debugging
+        self.traceback_info = traceback.format_exc() if traceback.format_exc() != 'NoneType: None\n' else None
 
         super().__init__(self.error_message)
 
@@ -32,15 +36,27 @@ class QBitraException(Exception):
             self.error_details["cause_type"] = type(cause).__name__
 
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert exception to dictionary for API responses."""
+    def to_dict(self, include_traceback: bool = False, include_details: bool = True) -> Dict[str, Any]:
+        """
+        Convert exception to dictionary for API responses with environment-based filtering.
+        
+        Args:
+            include_traceback: Whether to include traceback (dev only)
+            include_details: Whether to include error_details (dev/stage)
+            
+        Returns:
+            Dictionary representation of the exception
+        """
         result = {
             "status_code": self.status_code,
             "error_code": self.error_code,
             "error_message": self.error_message,
         }
         
-        if self.error_details:
+        if include_details and self.error_details:
             result["error_details"] = self.error_details
+        
+        if include_traceback and self.traceback_info:
+            result["traceback"] = self.traceback_info
         
         return result
