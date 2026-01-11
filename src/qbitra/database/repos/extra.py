@@ -1,5 +1,4 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
-
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update, func, asc, desc
