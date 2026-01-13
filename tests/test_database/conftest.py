@@ -3,11 +3,11 @@ import pytest
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, Numeric, Enum, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship, Session
 
-from qbitra.database.config import DatabaseConfig, DatabaseType
-from qbitra.database.engine import DatabaseEngine, DatabaseManager, get_database_manager
+from qbitra.infrastructure.database.config import DatabaseConfig, DatabaseType
+from qbitra.infrastructure.database.engine import DatabaseEngine, DatabaseManager, get_database_manager
 
-from qbitra.database.models.base import BaseModel
-from qbitra.database.models.mixins import TimestampMixin, SoftDeleteMixin, AuditMixin
+from qbitra.infrastructure.database.models.base import BaseModel
+from qbitra.infrastructure.database.models.mixins import TimestampMixin, SoftDeleteMixin, AuditMixin
 import enum
 
 # Use BaseModel as the base for new tests

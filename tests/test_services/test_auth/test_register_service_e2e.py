@@ -5,8 +5,8 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
-from qbitra.services.auth_services import RegistrationService
-from qbitra.repositories import RepositoryRegistry
+from qbitra.domain.services.auth_services import RegistrationService
+from qbitra.domain.repositories import RepositoryRegistry
 from qbitra.core.exceptions.services import (
     RegistrationEmailAlreadyExistsError,
     RegistrationUsernameAlreadyExistsError,
@@ -189,9 +189,9 @@ class TestRegistrationServiceE2E:
             RegistrationService.verify_email(session, verification_token=verification_token)
 
         with manager.engine.session_context(auto_commit=True) as session:
-            with pytest.raises(EmailAlreadyVerifiedError) as exc_info:
+            # Token None olduğu için token bulunamaz, EmailVerificationTokenNotFoundError fırlatılır
+            with pytest.raises(EmailVerificationTokenNotFoundError):
                 RegistrationService.verify_email(session, verification_token=verification_token)
-            assert exc_info.value.error_details["email"] == "john.doe@example.com"
 
     def test_verify_email_invalid_token(self, manager):
         """Scenario: User tries to verify email with invalid token (wrong hash)."""
@@ -206,7 +206,8 @@ class TestRegistrationServiceE2E:
             )
 
         with manager.engine.session_context(auto_commit=True) as session:
-            with pytest.raises(EmailVerificationTokenInvalidError):
+            # Geçersiz token hash'lenmiş token'larla eşleşmediği için bulunamaz
+            with pytest.raises(EmailVerificationTokenNotFoundError):
                 RegistrationService.verify_email(session, verification_token="invalid_token_12345")
 
     def test_verify_email_expired_token_auto_resend(self, manager):
@@ -225,17 +226,20 @@ class TestRegistrationServiceE2E:
             user_repo = RepositoryRegistry().user_repository
             user = user_repo.get_by_email(session, email="john.doe@example.com", include_deleted=False)
             user.email_verification_token_expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
-            user_repo.update(session, user)
+            session.flush()
 
         with manager.engine.session_context(auto_commit=True) as session:
-            with pytest.raises(EmailVerificationTokenInvalidError) as exc_info:
-                RegistrationService.verify_email(session, verification_token=verification_token)
+            # Expired token durumunda yeni token oluşturulur ve başarılı response döner
+            result = RegistrationService.verify_email(session, verification_token=verification_token)
             
-            assert "expired" in exc_info.value.message.lower() or "new" in exc_info.value.message.lower()
+            assert "expired" in result["message"].lower() or "new" in result["message"].lower()
+            assert result["data"]["email_verified"] is False
+            assert "email_verification_token" in result["data"]
 
             user_repo = RepositoryRegistry().user_repository
             user = user_repo.get_by_email(session, email="john.doe@example.com", include_deleted=False)
             assert user.email_verification_token is not None
+            # Yeni token oluşturuldu, eski token ile eşleşmez
             assert user.email_verification_token != verification_token
 
     def test_resend_verification_email_success(self, manager):

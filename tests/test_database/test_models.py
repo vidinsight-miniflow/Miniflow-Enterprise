@@ -4,7 +4,7 @@ from decimal import Decimal
 import uuid
 import json
 from sqlalchemy.orm import Session
-from qbitra.database.models.serializations import model_to_dict, models_to_list, model_to_json
+from qbitra.infrastructure.database.models.serializations import model_to_dict, models_to_list, model_to_json
 from tests.test_database.conftest import TestUser, TestParent, TestChild, TestTypes, MyEnum, Base
 
 def test_base_model_id_generation():
@@ -109,7 +109,7 @@ def test_serialization_all_types():
     assert result["bytes_col"] == "hello world"
     
     # Test the standalone _serialize_value function for containers and fallback
-    from qbitra.database.models.serializations import _serialize_value
+    from qbitra.infrastructure.database.models.serializations import _serialize_value
     assert _serialize_value({"a": 1}) == {"a": 1}
     assert _serialize_value({1, 2}) == [1, 2] or _serialize_value({1, 2}) == [2, 1]
     assert _serialize_value(None) is None

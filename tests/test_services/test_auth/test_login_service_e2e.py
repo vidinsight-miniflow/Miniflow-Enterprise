@@ -1,8 +1,8 @@
 import pytest
 from datetime import datetime, timezone
 
-from qbitra.services.auth_services import LoginService, RegistrationService
-from qbitra.repositories import RepositoryRegistry
+from qbitra.domain.services.auth_services import LoginService, RegistrationService
+from qbitra.domain.repositories import RepositoryRegistry
 from qbitra.core.exceptions.services import (
     InvalidCredentialsError,
     EmailNotVerifiedError,

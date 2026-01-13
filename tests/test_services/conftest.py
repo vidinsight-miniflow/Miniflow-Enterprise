@@ -6,15 +6,33 @@ from configparser import ConfigParser
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from qbitra.database.config import DatabaseConfig, DatabaseType
-from qbitra.database.engine import DatabaseManager, get_database_manager
-from qbitra.database.models import BaseModel
+from qbitra.infrastructure.database.config import DatabaseConfig, DatabaseType
+from qbitra.infrastructure.database.engine import DatabaseManager, get_database_manager
+from qbitra.infrastructure.database.models import BaseModel
 
 # Initialize ConfigurationHandler before any imports that depend on it
 from qbitra.utils.handlers.configuration_handler import ConfigurationHandler
+from qbitra.utils.handlers.environment_handler import EnvironmentHandler
+
+# Mock EnvironmentHandler for JWT_SECRET_KEY
+def mock_get_value_as_str(key: str, default: str = None) -> str:
+    if key == "JWT_SECRET_KEY":
+        return "test_jwt_secret_key_for_testing_purposes_only_min_32_chars"
+    return "dev"
+
+# Initialize EnvironmentHandler
+with patch("pathlib.Path.exists", return_value=True), \
+     patch("dotenv.load_dotenv"):
+    EnvironmentHandler._initialized = False
+    EnvironmentHandler._env_path = None
+    # Mock environment variables
+    import os
+    os.environ["JWT_SECRET_KEY"] = "test_jwt_secret_key_for_testing_purposes_only_min_32_chars"
+    os.environ["APP_ENV"] = "dev"
+    EnvironmentHandler._initialized = True
 
 with patch("qbitra.utils.handlers.environment_handler.EnvironmentHandler.is_initialized", return_value=True), \
-     patch("qbitra.utils.handlers.environment_handler.EnvironmentHandler.get_value_as_str", return_value="dev"), \
+     patch("qbitra.utils.handlers.environment_handler.EnvironmentHandler.get_value_as_str", side_effect=mock_get_value_as_str), \
      patch("pathlib.Path.exists", return_value=True), \
      patch("configparser.ConfigParser.read"):
     ConfigurationHandler._initialized = False

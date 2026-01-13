@@ -2,7 +2,7 @@ import pytest
 import redis
 import json
 from unittest.mock import patch, MagicMock
-from qbitra.utils.handlers.redis_handler import RedisClient
+from qbitra.infrastructure.clients.redis import RedisClient
 from qbitra.utils.handlers import ConfigurationHandler
 from qbitra.core.exceptions import (
     RedisClientError,
@@ -33,7 +33,7 @@ def test_load_success():
          patch.object(ConfigurationHandler, "get_value_as_str", return_value="localhost"), \
          patch.object(ConfigurationHandler, "get_value_as_int", return_value=6379), \
          patch.object(ConfigurationHandler, "get_value_as_bool", return_value=True), \
-         patch("qbitra.utils.handlers.redis_handler.ConnectionPool") as mock_pool, \
+         patch("qbitra.infrastructure.clients.redis.ConnectionPool") as mock_pool, \
          patch("redis.Redis") as mock_redis:
         
         RedisClient.load()

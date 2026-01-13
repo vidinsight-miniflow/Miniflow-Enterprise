@@ -10,9 +10,9 @@ Tek komut ile uygulamayı başlatır:
 """
 from qbitra.utils.handlers.environment_handler import EnvironmentHandler
 from qbitra.utils.handlers.configuration_handler import ConfigurationHandler
-from qbitra.database.config import DatabaseConfig, DatabaseType
-from qbitra.database.engine.manager import DatabaseManager
-from qbitra.qbitra.qbitra import QBitra
+from qbitra.infrastructure.database.config import DatabaseConfig, DatabaseType
+from qbitra.infrastructure.database.engine.manager import DatabaseManager
+from qbitra.core.qbitra.qbitra import QBitra
 from qbitra.core.qbitra_logger import get_logger
 
 logger = get_logger("startup")
@@ -89,19 +89,20 @@ def setup_app(qbitra: QBitra):
     logger.info("Router, middleware ve handler'lar ekleniyor...")
     
     # Exception handler ekle
-    from qbitra.app.middleware import qbitra_exception_handler
+    from qbitra.api.middleware.exception_middleware import qbitra_exception_handler
     from qbitra.core.exceptions import QBitraException
     
     qbitra.add_exception_handler(QBitraException, qbitra_exception_handler)
     logger.info("Exception handler eklendi")
     
-    # Router'ları ekle
-    from qbitra.app.routes.auth import router as auth_router
-    qbitra.include_router(auth_router, prefix="/api")
+    # Logging middleware ekle (trace, correlation, session için)
+    from qbitra.api.middleware.logging_middleware import LoggingMiddleware
+    qbitra.add_middleware(LoggingMiddleware, log_requests=True)
+    logger.info("Logging middleware eklendi")
     
-    # Middleware ekle (örnek)
-    # from some_middleware import SomeMiddleware
-    # qbitra.add_middleware(SomeMiddleware)
+    # Router'ları ekle
+    from qbitra.api.routes.auth import router as auth_router
+    qbitra.include_router(auth_router, prefix="/api")
     
     logger.info("Tüm router, middleware ve handler'lar eklendi")
 

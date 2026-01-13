@@ -1,9 +1,9 @@
 import pytest
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from qbitra.database.repos.base import BaseRepository, handle_exceptions
-from qbitra.database.repos.bulk import BulkRepository
-from qbitra.database.repos.extra import ExtraRepository
+from qbitra.infrastructure.database.repos.base import BaseRepository, handle_exceptions
+from qbitra.infrastructure.database.repos.bulk import BulkRepository
+from qbitra.infrastructure.database.repos.extra import ExtraRepository
 from qbitra.core.exceptions import (
     DatabaseQueryError,
     DatabaseValidationError,

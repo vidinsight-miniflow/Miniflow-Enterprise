@@ -2,10 +2,10 @@ import pytest
 import time
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import OperationalError
-from qbitra.database.engine.decorators import (
+from qbitra.infrastructure.database.engine.decorators import (
     with_session, with_transaction_session, with_readonly_session, with_retry_session
 )
-from qbitra.database.engine.manager import DatabaseManager
+from qbitra.infrastructure.database.engine.manager import DatabaseManager
 from qbitra.core.exceptions import DatabaseDecoratorSignatureError
 from tests.test_database.conftest import TestUser
 

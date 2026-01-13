@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import text
-from qbitra.database.engine.engine import DatabaseEngine
+from qbitra.infrastructure.database.engine.engine import DatabaseEngine
 from qbitra.core.exceptions import DatabaseEngineError
 from tests.test_database.conftest import TestUser
 

@@ -98,7 +98,12 @@ def setup_logger(
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.handlers.clear()
-    logger.propagate = False
+    
+    # Propagation ayarı: 
+    # - Root logger (qbitra): False (Python root logger'a gitmesin)
+    # - Service logger'lar (qbitra.*): True (qbitra root logger'a propagate etsin)
+    # - Diğer logger'lar: True (Python root logger'a propagate etsin)
+    logger.propagate = name != "qbitra"
     
     # Effective service name
     svc = service_name or name

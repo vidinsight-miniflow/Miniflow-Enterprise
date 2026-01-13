@@ -1,7 +1,7 @@
 import pytest
 import mailtrap as mt
 from unittest.mock import patch, MagicMock
-from qbitra.utils.handlers.mailtrap_handler import MailTrapClient
+from qbitra.infrastructure.clients.mailtrap import MailTrapClient
 from qbitra.utils.handlers import EnvironmentHandler, ConfigurationHandler
 from qbitra.core.exceptions import (
     MailTrapClientError,

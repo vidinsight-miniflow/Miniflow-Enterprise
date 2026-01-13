@@ -3,7 +3,7 @@ import time
 import asyncio
 from unittest.mock import patch, MagicMock, call
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, Summary
-from qbitra.utils.handlers.prometheus_handler import PrometheusClient
+from qbitra.infrastructure.clients.prometheus import PrometheusClient
 from qbitra.utils.handlers import ConfigurationHandler
 from qbitra.core.exceptions import PrometheusClientError, PrometheusMetricError
 
@@ -27,7 +27,7 @@ def test_load_success():
     with patch.object(ConfigurationHandler, "ensure_loaded"), \
          patch.object(ConfigurationHandler, "get_value_as_str", side_effect=["test_ns", None, "test_job"]), \
          patch.object(ConfigurationHandler, "get_value_as_int", return_value=9090), \
-         patch("qbitra.utils.handlers.prometheus_handler.CollectorRegistry") as mock_registry:
+         patch("qbitra.infrastructure.clients.prometheus.CollectorRegistry") as mock_registry:
         
         PrometheusClient.load()
         
@@ -87,7 +87,7 @@ def test_create_counter():
     PrometheusClient._registry = MagicMock()
     PrometheusClient._namespace = "qbitra"
     
-    with patch("qbitra.utils.handlers.prometheus_handler.Counter") as mock_counter_cls:
+    with patch("qbitra.infrastructure.clients.prometheus.Counter") as mock_counter_cls:
         # Create first time
         mock_counter_cls.return_value = "counter_inst"
         res1 = PrometheusClient.create_counter("svc", "hits", "Desc")
@@ -247,11 +247,11 @@ def test_export_and_push():
     PrometheusClient._push_gateway_url = "http://gateway"
     PrometheusClient._job_name = "job"
     
-    with patch("qbitra.utils.handlers.prometheus_handler.generate_latest", return_value=b"metrics") as mock_gen:
+    with patch("qbitra.infrastructure.clients.prometheus.generate_latest", return_value=b"metrics") as mock_gen:
         assert PrometheusClient.get_metrics() == b"metrics"
         mock_gen.assert_called_with(PrometheusClient._registry)
     
-    with patch("qbitra.utils.handlers.prometheus_handler.push_to_gateway") as mock_push:
+    with patch("qbitra.infrastructure.clients.prometheus.push_to_gateway") as mock_push:
         grouping = {"node": "1"}
         PrometheusClient.push_to_gateway(grouping_key=grouping)
         mock_push.assert_called_with(
@@ -265,7 +265,7 @@ def test_start_http_server():
     """Test starting the metrics HTTP server."""
     PrometheusClient._initialized = True
     PrometheusClient._registry = MagicMock()
-    with patch("qbitra.utils.handlers.prometheus_handler.start_http_server") as mock_start:
+    with patch("qbitra.infrastructure.clients.prometheus.start_http_server") as mock_start:
         PrometheusClient.start_http_server(8080)
         mock_start.assert_called_once_with(8080, registry=PrometheusClient._registry)
 

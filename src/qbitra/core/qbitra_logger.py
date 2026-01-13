@@ -49,6 +49,8 @@ COMPRESS = True
 # Log seviyeleri
 ROOT_LEVEL = logging.INFO
 ERROR_LEVEL = logging.ERROR
+# Servis logger seviyeleri (daha detaylı log için DEBUG)
+SERVICE_LEVEL = logging.DEBUG
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -103,7 +105,8 @@ class QbitraLoggerManager:
                     filename=str(LOGS_DIR / "app.log"),
                     max_bytes=MAX_BYTES,
                     backup_count=BACKUP_COUNT,
-                    compress=COMPRESS
+                    compress=COMPRESS,
+                    level=ROOT_LEVEL
                 ),
                 formatter=PrettyFormatter(
                     service_name="qbitra",
@@ -117,7 +120,8 @@ class QbitraLoggerManager:
                     filename=str(LOGS_DIR / "error.log"),
                     max_bytes=MAX_BYTES,
                     backup_count=BACKUP_COUNT,
-                    compress=COMPRESS
+                    compress=COMPRESS,
+                    level=ERROR_LEVEL
                 ),
                 formatter=JSONFormatter(
                     service_name="qbitra",
@@ -193,14 +197,15 @@ class QbitraLoggerManager:
                     filename=str(service_dir / "service.log"),
                     max_bytes=MAX_BYTES,
                     backup_count=BACKUP_COUNT,
-                    compress=COMPRESS
+                    compress=COMPRESS,
+                    level=SERVICE_LEVEL
                 ),
                 formatter=JSONFormatter(
                     service_name=service_name,
                     include_location=False,   # Servis loglarında location yok
                     include_exception=False  # Servis loglarında traceback yok
                 ),
-                level=ROOT_LEVEL
+                level=SERVICE_LEVEL
             ),
         ]
         
@@ -209,11 +214,13 @@ class QbitraLoggerManager:
         
         logger, handler_instances = setup_logger(
             name=logger_name,
-            level=ROOT_LEVEL,
+            level=SERVICE_LEVEL,
             service_name=service_name,
             handlers=handlers,
             return_handlers=True
         )
+        # Logger propagate ayarı setup_logger içinde otomatik yapılıyor
+        # (qbitra.* logger'lar otomatik olarak root'a propagate eder)
         
         self._handlers[service_name] = handler_instances
         

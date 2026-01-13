@@ -1,8 +1,8 @@
 from .environment_handler import EnvironmentHandler
 from .configuration_handler import ConfigurationHandler
-from .redis_handler import RedisClient
-from .mailtrap_handler import MailTrapClient
-from .prometheus_handler import PrometheusClient
+from qbitra.infrastructure.clients.redis import RedisClient
+from qbitra.infrastructure.clients.mailtrap import MailTrapClient
+from qbitra.infrastructure.clients.prometheus import PrometheusClient
 
 
 __all__ = [

@@ -1,6 +1,6 @@
 import pytest
-from qbitra.database.config import DatabaseConfig, EngineConfig, DatabaseType
-from qbitra.database.config.factories import get_sqlite_config, get_postgresql_config, get_mysql_config
+from qbitra.infrastructure.database.config import DatabaseConfig, EngineConfig, DatabaseType
+from qbitra.infrastructure.database.config.factories import get_sqlite_config, get_postgresql_config, get_mysql_config
 from qbitra.core.exceptions import DatabaseValidationError
 
 def test_database_config_init():

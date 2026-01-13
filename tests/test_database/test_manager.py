@@ -1,5 +1,5 @@
 import pytest
-from qbitra.database.engine.manager import DatabaseManager, get_database_manager
+from qbitra.infrastructure.database.engine.manager import DatabaseManager, get_database_manager
 from qbitra.core.exceptions import DatabaseManagerNotInitializedError, DatabaseManagerAlreadyInitializedError
 
 def test_manager_singleton():

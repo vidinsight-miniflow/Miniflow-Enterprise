@@ -2,7 +2,7 @@ import threading
 import pytest
 import time
 from sqlalchemy.orm import Session
-from qbitra.database.engine.manager import DatabaseManager
+from qbitra.infrastructure.database.engine.manager import DatabaseManager
 from tests.test_database.conftest import TestUser, Base
 
 def test_race_conditions_multithreading(file_db_config):
