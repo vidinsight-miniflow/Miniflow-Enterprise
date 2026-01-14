@@ -12,7 +12,8 @@ from qbitra.utils.helpers.crypto_helper import hash_data
 from qbitra.utils.handlers.configuration_handler import ConfigurationHandler
 
 
-_logger = get_logger("token_helper")
+# Helpers katmanı logger'ı (logs/helpers/token_helper/service.log)
+_logger = get_logger("token_helper", parent_folder="helpers")
 
 
 def _now() -> datetime:

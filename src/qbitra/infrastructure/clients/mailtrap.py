@@ -25,7 +25,8 @@ class MailTrapClient:
 
     _client: mt.MailtrapClient = None
     _initialized: bool = False
-    _logger = get_logger("smtp")
+    # Infrastructure katmanı logger'ı (logs/infrastructure/smtp/service.log)
+    _logger = get_logger("smtp", parent_folder="infrastructure")
 
     @classmethod
     def _load_configuration(cls):

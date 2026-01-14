@@ -21,7 +21,8 @@ class RedisClient:
     _pool: Optional[ConnectionPool] = None
     _client: Optional[redis.Redis] = None
     _initialized: bool = False
-    _logger = get_logger("redis")
+    # Infrastructure katmanı logger'ı (logs/infrastructure/redis/service.log)
+    _logger = get_logger("redis", parent_folder="infrastructure")
 
     _host: str = None
     _port: int = None

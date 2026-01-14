@@ -22,7 +22,8 @@ class ConfigurationHandler:
     _parser = ConfigParser()
     _config_dir = None
     _current_env = None
-    _logger = get_logger("core")
+    # Çekirdek configuration logger'ı (logs/core/configuration/service.log)
+    _logger = get_logger("configuration", parent_folder="core")
 
     VALID_ENVIRONMENTS = ("dev", "prod", "stage", "test")
 

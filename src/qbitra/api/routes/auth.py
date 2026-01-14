@@ -23,7 +23,8 @@ from qbitra.domain.services import LoginService, RegistrationService
 from qbitra.api.dependencies.service_providers import get_login_service, get_registration_service
 from qbitra.core.qbitra_logger import get_logger
 
-logger = get_logger("Auth Routes")
+# API katmanı auth router logger'ı (logs/api/auth_routes/service.log)
+logger = get_logger("auth_routes", parent_folder="api")
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

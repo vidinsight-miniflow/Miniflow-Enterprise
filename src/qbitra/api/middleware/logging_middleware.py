@@ -10,18 +10,22 @@ Trace, Correlation ve Session ile Loglama Middleware'i
 import time
 import uuid
 from typing import Callable
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from qbitra.core.logger.context import trace, TraceContext, get_current_context, set_current_context
-from qbitra.core.qbitra_logger import get_logger
+from qbitra.core.logger.context import trace, get_current_context
+from qbitra.core.qbitra_logger import get_logger, get_access_logger
 
-logger = get_logger("api")
+# API katmanı genel istek/cevap logger'ı
+logger = get_logger("logging_middleware", parent_folder="api")
+# Sade access log (method, path, status_code, trace/correlation) için logger
+access_logger = get_access_logger()
 
 
 def _generate_correlation_id() -> str:
-    """Benzersiz correlation ID oluşturur"""
+    """Benzersiz correlation ID oluşturur."""
     return f"corr-{uuid.uuid4().hex[:16]}"
 
 
@@ -79,7 +83,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         with trace(
             correlation_id=correlation_id,
             session_id=session_id,
-            headers=dict(request.headers)  # Original headers for TraceContext.from_headers
+            headers=dict(request.headers),  # Original headers for TraceContext.from_headers
         ) as ctx:
             # Request başlangıç zamanı
             start_time = time.time()
@@ -95,7 +99,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                         "client": request.client.host if request.client else None,
                         "correlation_id": correlation_id,
                         "session_id": session_id,
-                    }
+                    },
                 )
             
             # Request'i işle
@@ -124,8 +128,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                                 "process_time": f"{process_time:.3f}s",
                                 "correlation_id": current_ctx.correlation_id,
                                 "session_id": current_ctx.session_id,
-                            }
+                                "trace_id": current_ctx.trace_id,
+                            },
                         )
+                    
+                    # Sade access log (her istek için tek satır)
+                    access_logger.info(
+                        "access",
+                        extra={
+                            "method": request.method,
+                            "path": request.url.path,
+                            "status_code": response.status_code,
+                            "trace_id": current_ctx.trace_id,
+                            "correlation_id": current_ctx.correlation_id,
+                        },
+                    )
                 else:
                     # Context yoksa (çok nadir durum) başlangıç context'ini kullan
                     for key, value in ctx.to_headers().items():
@@ -141,8 +158,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                                 "process_time": f"{process_time:.3f}s",
                                 "correlation_id": ctx.correlation_id,
                                 "session_id": ctx.session_id,
-                            }
+                                "trace_id": ctx.trace_id,
+                            },
                         )
+                    
+                    # Sade access log (context fallback ile)
+                    access_logger.info(
+                        "access",
+                        extra={
+                            "method": request.method,
+                            "path": request.url.path,
+                            "status_code": response.status_code,
+                            "trace_id": ctx.trace_id,
+                            "correlation_id": ctx.correlation_id,
+                        },
+                    )
                 
                 return response
             
@@ -164,7 +194,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                         "correlation_id": current_ctx.correlation_id,
                         "session_id": current_ctx.session_id,
                     },
-                    exc_info=True
+                    exc_info=True,
                 )
                 
                 raise

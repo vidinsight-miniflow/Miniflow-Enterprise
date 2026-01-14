@@ -48,7 +48,8 @@ class AppFactory:
         self.config = config
         self._app: Optional[FastAPI] = None
         self._health_checks: Dict[str, Callable] = {}
-        self.logger = get_logger("main")
+        # Çekirdek uygulama logger'ı
+        self.logger = get_logger("app", parent_folder="core")
 
     @property
     def app(self) -> Optional[FastAPI]:
@@ -94,23 +95,26 @@ class AppFactory:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             # Startup: Logger'ları worker sürecinde initialize et
-            startup_logger = get_logger("startup")
+            startup_logger = get_logger("startup", parent_folder="core")
+            print("[QBITRA] FastAPI worker starting, initializing loggers...")
             startup_logger.info("FastAPI worker started - initializing loggers")
             
             # Tüm kritik logger'ları touch et (lazy initialization garantisi)
-            api_logger = get_logger("api")
-            auth_service_logger = get_logger("Auth Service")
-            auth_routes_logger = get_logger("Auth Routes")
+            api_logger = get_logger("api", parent_folder="api")
+            auth_service_logger = get_logger("Auth Service", parent_folder="services")
+            auth_routes_logger = get_logger("auth_routes", parent_folder="api")
             
             api_logger.info("API logger initialized in worker process")
             auth_service_logger.debug("Auth Service logger initialized in worker process")
             auth_routes_logger.debug("Auth Routes logger initialized in worker process")
             
             startup_logger.info("All loggers initialized successfully in worker")
+            print("[QBITRA] FastAPI worker ready. All loggers initialized.")
             
             yield  # App çalışır
             
             # Shutdown: Temizlik işlemleri
+            print("[QBITRA] FastAPI worker shutting down...")
             startup_logger.info("FastAPI worker shutting down")
         
         return lifespan
