@@ -11,7 +11,8 @@ class QBitra:
         app_config: Optional[AppConfig] = None,
         server_config: Optional[ServerConfig] = None
     ):
-        self.logger = get_logger("qbitra")
+        # Çekirdek qbitra logger'ı (logs/core/qbitra/service.log)
+        self.logger = get_logger("qbitra", parent_folder="core")
         self.app_config = app_config or AppConfig.from_config()
         self.server_config = server_config or ServerConfig.from_config()
         self.app_factory = AppFactory(self.app_config)

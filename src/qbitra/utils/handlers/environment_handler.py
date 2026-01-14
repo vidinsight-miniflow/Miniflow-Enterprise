@@ -16,7 +16,8 @@ from qbitra.core.exceptions import (
 class EnvironmentHandler:
     _env_path = None
     _initialized = False
-    _logger = get_logger("core")
+    # Çekirdek ortam logger'ı (logs/core/environment/service.log)
+    _logger = get_logger("environment", parent_folder="core")
 
     @classmethod
     def load(cls):

@@ -18,7 +18,8 @@ from qbitra.core.exceptions.services import (
     EmailAlreadyVerifiedError,
 )
 
-logger = get_logger("Auth Service")
+# Domain servis logger'ı (logs/services/Auth Service/service.log)
+logger = get_logger("Auth Service", parent_folder="services")
 
 
 class RegistrationService:

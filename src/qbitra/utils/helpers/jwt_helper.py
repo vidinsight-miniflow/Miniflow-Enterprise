@@ -22,7 +22,8 @@ _jwt_algorithm: Optional[str] = None
 _access_token_expire_minutes: Optional[timedelta] = None
 _refresh_token_expire_days: Optional[timedelta] = None
 
-_logger = get_logger("jwt_helper")
+# Helpers katmanı logger'ı (logs/helpers/jwt_helper/service.log)
+_logger = get_logger("jwt_helper", parent_folder="helpers")
 
 
 def _get_jwt_secret_key() -> str:

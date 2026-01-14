@@ -18,7 +18,8 @@ from qbitra.utils.handlers.environment_handler import EnvironmentHandler
 # Cache variables for lazy loading
 _encryption_key: Optional[bytes] = None
 _cipher: Optional[Fernet] = None
-_logger = get_logger("utils")
+# Helpers katmanı logger'ı (logs/helpers/crypto_helper/service.log)
+_logger = get_logger("crypto_helper", parent_folder="helpers")
 
 
 def _validate_encryption_key(key: str):

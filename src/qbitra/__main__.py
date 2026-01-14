@@ -15,7 +15,8 @@ from qbitra.infrastructure.database.engine.manager import DatabaseManager
 from qbitra.core.qbitra.qbitra import QBitra
 from qbitra.core.qbitra_logger import get_logger
 
-logger = get_logger("startup")
+# Çekirdek startup logger'ı (logs/core/startup/service.log)
+logger = get_logger("startup", parent_folder="core")
 
 
 def initialize_handlers():
@@ -125,9 +126,13 @@ def start_server():
 def main():
     """Ana başlatma fonksiyonu."""
     try:
-        logger.info("=" * 60)
+        banner = "=" * 60
+        print(banner)
+        print("QBitra Backend başlatılıyor...")
+        print(banner)
+        logger.info(banner)
         logger.info("QBitra Backend başlatılıyor...")
-        logger.info("=" * 60)
+        logger.info(banner)
         
         # 1. Handler'ları başlat
         initialize_handlers()
@@ -136,13 +141,19 @@ def main():
         initialize_database()
         
         # 3. Sunucuyu başlat
+        print("[QBITRA] Sunucu başlatılıyor (API ve servisler ayağa kalkıyor)...")
         start_server()
         
     except KeyboardInterrupt:
+        print("[QBITRA] Uygulama durduruldu (Ctrl+C)")
         logger.info("Uygulama durduruldu (Ctrl+C)")
     except Exception as e:
         logger.error(f"Başlatma hatası: {e}", exc_info=True)
         raise
+    else:
+        # Normal sonlanma
+        print("[QBITRA] Uygulama normal şekilde sonlandı.")
+        logger.info("Uygulama normal şekilde sonlandı")
 
 
 if __name__ == "__main__":

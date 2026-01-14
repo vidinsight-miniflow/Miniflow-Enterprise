@@ -30,7 +30,8 @@ class PrometheusClient:
 
     _registry: CollectorRegistry = None
     _initialized: bool = False
-    _logger = get_logger("prometheus")
+    # Infrastructure katmanı logger'ı (logs/infrastructure/prometheus/service.log)
+    _logger = get_logger("prometheus", parent_folder="infrastructure")
     _lock = threading.RLock()
 
     # Configuration

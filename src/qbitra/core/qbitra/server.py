@@ -64,7 +64,8 @@ class ServerManager:
         self.config = config
         self.server = None
         self._is_running = False
-        self.logger = get_logger("runner")
+        # Sunucu / process seviyesi logger
+        self.logger = get_logger("server", parent_folder="core")
 
     def start(self, app: "FastAPI", app_import_string: Optional[str] = None) -> None:
         """
@@ -81,6 +82,12 @@ class ServerManager:
         
         uvicorn_kwargs = self._build_uvicorn_config()
         
+        # Konsolda da kritik başlangıç bilgisini göster
+        print(
+            f"[QBITRA] Starting server on {self.config.host}:{self.config.port} "
+            f"(env={self.config.environment}, workers={self.config.workers if not self.config.reload else 1}, "
+            f"reload={self.config.reload})"
+        )
         self.logger.info(
             f"Starting server on {self.config.host}:{self.config.port}",
             extra={
@@ -158,6 +165,7 @@ class ServerManager:
             self.logger.warning("Server is not running")
             return
         
+        print("[QBITRA] Stopping server (shutdown requested)...")
         self.logger.info("Stopping server...")
         self._is_running = False
         
@@ -173,6 +181,7 @@ class ServerManager:
                 self.logger.error(f"Error stopping server instance: {e}", exc_info=True)
         
         self.logger.info("Server stop signal sent")
+        print("[QBITRA] Server stop signal sent. Waiting for graceful shutdown...")
     
     @property
     def is_running(self) -> bool:
