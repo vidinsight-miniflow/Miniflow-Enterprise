@@ -229,3 +229,4 @@ logs/
 *.log.gz
 *.log.*.gz
 *.db
+*.logs
